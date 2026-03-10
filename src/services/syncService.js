@@ -1,3 +1,121 @@
+// import axios from 'axios'
+// import offlineStorage from './offlineStorage'
+
+// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+
+// class SyncService {
+//   constructor() {
+//     this.isOnline = navigator.onLine
+//     this.syncInProgress = false
+//     this.initEventListeners()
+//   }
+
+//   initEventListeners() {
+//     window.addEventListener('online', () => {
+//       this.isOnline = true
+//       this.syncData()
+//     })
+
+//     window.addEventListener('offline', () => {
+//       this.isOnline = false
+//     })
+//   }
+
+//   async syncData() {
+//     if (!this.isOnline || this.syncInProgress) return
+
+//     this.syncInProgress = true
+
+//     try {
+//       const pendingItems = await offlineStorage.getPendingSync()
+
+//       for (const item of pendingItems) {
+//         try {
+//           await this.processSyncItem(item)
+//           await offlineStorage.removeFromPendingSync(item.localId)
+//         } catch (error) {
+//           console.error('Sync failed for item:', item, error)
+//           await offlineStorage.updateSyncAttempt(item.id)
+//         }
+//       }
+//     } catch (error) {
+//       console.error('Sync process error:', error)
+//     } finally {
+//       this.syncInProgress = false
+//     }
+//   }
+
+//   async processSyncItem(item) {
+//     switch (item.action) {
+//       case 'create':
+//         return this.syncCreateCustomer(item)
+//       case 'update':
+//         return this.syncUpdateCustomer(item)
+//       default:
+//         throw new Error(`Unknown action: ${item.action}`)
+//     }
+//   }
+
+//   async syncCreateCustomer(item) {
+//     const formData = new FormData()
+
+//     // Add all customer fields
+//     Object.keys(item.data).forEach((key) => {
+//       if (key !== 'localId' && key !== 'synced' && key !== 'createdAt' && key !== 'updatedAt') {
+//         if (item.data[key] instanceof File) {
+//           formData.append(key, item.data[key])
+//         } else if (item.data[key] !== null && item.data[key] !== undefined) {
+//           formData.append(key, item.data[key].toString())
+//         }
+//       }
+//     })
+
+//     const response = await axios.post(`${API_URL}/customers`, formData, {
+//       headers: { 'Content-Type': 'multipart/form-data' },
+//     })
+
+//     if (response.data.success) {
+//       await offlineStorage.markAsSynced(item.localId, response.data.data.id)
+//     }
+
+//     return response
+//   }
+
+//   async syncUpdateCustomer(item) {
+//     const formData = new FormData()
+//     formData.append('_method', 'PUT')
+
+//     Object.keys(item.data).forEach((key) => {
+//       if (key !== 'localId' && key !== 'synced' && key !== 'createdAt' && key !== 'updatedAt') {
+//         if (item.data[key] instanceof File) {
+//           formData.append(key, item.data[key])
+//         } else if (item.data[key] !== null && item.data[key] !== undefined) {
+//           formData.append(key, item.data[key].toString())
+//         }
+//       }
+//     })
+
+//     const response = await axios.post(`${API_URL}/customers/${item.data.id}`, formData, {
+//       headers: { 'Content-Type': 'multipart/form-data' },
+//     })
+
+//     if (response.data.success) {
+//       await offlineStorage.markAsSynced(item.localId, item.data.id)
+//     }
+
+//     return response
+//   }
+
+//   async checkServerStatus() {
+//     try {
+//       await axios.get(`${API_URL}/health`, { timeout: 3000 })
+//       return true
+//     } catch {
+//       return false
+//     }
+//   }
+// }
+
 // export default new SyncService()
 // services/syncService.js
 import { useAuthStore } from '@/stores/auth'

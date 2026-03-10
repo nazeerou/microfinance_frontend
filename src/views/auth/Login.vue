@@ -79,11 +79,10 @@ const handleLogin = async () => {
     } else if (err.response?.status === 404) {
       error.value = `Seva haipatikani (404). Tafadhali hakikisha URL ya API ni sahihi.`
     } else if (err.code === 'ERR_NETWORK') {
-      error.value =
-        'Haiwezi kuungana na seva. Hakikisha:\n' +
-        '1. Seva ya backend imewashwa (php artisan serve)\n' +
-        '2. URL ya API ni sahihi (VITE_API_URL)\n' +
-        '3. CORS imesanidiwa vizuri'
+      error.value = 'Haiwezi kuungana na seva. Hakikisha:\n'
+      // '1. Seva ya backend imewashwa (php artisan serve)\n' +
+      // '2. URL ya API ni sahihi (VITE_API_URL)\n' +
+      // '3. CORS imesanidiwa vizuri'
     } else {
       error.value =
         err.response?.data?.message || err.message || 'Hitilafu ya kuingia. Tafadhali jaribu tena.'

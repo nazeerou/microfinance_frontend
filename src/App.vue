@@ -21,9 +21,9 @@ import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 
-const trackActivity = () => {
-  authStore.trackActivity()
-}
+// const trackActivity = () => {
+//   authStore.trackActivity()
+// }
 
 onMounted(async () => {
   // Initialize auth state on app start - this will restore from localStorage

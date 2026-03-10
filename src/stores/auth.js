@@ -16,20 +16,8 @@ export const useAuthStore = defineStore('auth', () => {
   const lastActivity = ref(Date.now())
 
   // Configure axios
-  // const api = axios.create({
-  //   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
-  //   headers: {
-  //     'Content-Type': 'application/json',
-  //     Accept: 'application/json',
-  //     'X-Requested-With': 'XMLHttpRequest',
-  //   },
-  //   withCredentials: true,
-  //   timeout: 30000,
-  // })
-
-  ////online
   const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -38,6 +26,8 @@ export const useAuthStore = defineStore('auth', () => {
     withCredentials: true,
     timeout: 30000,
   })
+
+  ////online
 
   // Set authorization header if token exists
   if (token.value) {
