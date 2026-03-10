@@ -1,0 +1,2225 @@
+<template>
+  <div class="loan-form-container">
+    <!-- Header -->
+    <div class="form-header">
+      <h2>{{ isEdit ? 'Hariri Mkopo' : 'Ombi la Mkopo' }}</h2>
+      <p class="header-subtitle">
+        {{ isEdit ? 'Badilisha taarifa za mkopo' : 'Jaza taarifa zote za kuomba mkopo' }}
+      </p>
+    </div>
+
+    <!-- Customer Selection (if not preselected) -->
+    <div v-if="!preselectedCustomer && !isEdit" class="customer-selector">
+      <div class="selector-header">
+        <i class="fas fa-user"></i>
+        <h3>Chagua Mteja</h3>
+      </div>
+
+      <div class="search-box">
+        <i class="fas fa-search search-icon"></i>
+        <input
+          type="text"
+          v-model="customerSearch"
+          @input="searchCustomers"
+          placeholder="Tafuta mteja kwa jina, simu, au namba ya kitambulisho..."
+          class="search-input"
+        />
+      </div>
+
+      <!-- Add loading indicator -->
+      <div v-if="customersLoading" class="search-loading">
+        <div class="spinner-small"></div>
+        <span>Inatafuta...</span>
+      </div>
+
+      <div v-if="searchResults.length > 0" class="search-results">
+        <div
+          v-for="customer in searchResults"
+          :key="customer.id"
+          class="customer-result"
+          @click="selectCustomer(customer)"
+        >
+          <img
+            :src="customer.profile_photo || '/default-avatar.png'"
+            :alt="customer.name"
+            class="result-avatar"
+          />
+          <div class="result-info">
+            <span class="result-name">{{ customer.first_name }} {{ customer.last_name }}</span>
+            <span class="result-details">{{ customer.phone }} • {{ customer.occupation }}</span>
+          </div>
+          <i class="fas fa-chevron-right"></i>
+        </div>
+      </div>
+
+      <div v-if="noResults" class="no-results">
+        <i class="fas fa-user-slash"></i>
+        <p>Hakuna mteja aliyepatikana</p>
+        <router-link to="/customers/create" class="btn-primary">
+          <i class="fas fa-user-plus"></i>
+          Sajili Mteja Mpya
+        </router-link>
+      </div>
+    </div>
+
+    <!-- Selected Customer Info -->
+    <div v-if="selectedCustomer" class="selected-customer">
+      <div class="customer-card">
+        <img
+          :src="selectedCustomer.profile_photo || '/default-avatar.png'"
+          :alt="selectedCustomer.name"
+          class="customer-avatar"
+        />
+        <div class="customer-details">
+          <h3>{{ selectedCustomer.first_name }} {{ selectedCustomer.last_name }}</h3>
+          <p><i class="fas fa-phone-alt"></i> {{ selectedCustomer.phone }}</p>
+          <p><i class="fas fa-briefcase"></i> {{ selectedCustomer.occupation }}</p>
+          <p>
+            <i class="fas fa-coins"></i> Kipato:
+            {{ formatCurrency(selectedCustomer.monthly_income) }}/mwezi
+          </p>
+        </div>
+        <button v-if="!isEdit" class="btn-change" @click="changeCustomer">
+          <i class="fas fa-sync-alt"></i>
+          Badilisha
+        </button>
+      </div>
+    </div>
+
+    <!-- Loan Application Form -->
+    <form v-if="selectedCustomer || isEdit" @submit.prevent="submitForm" class="loan-form">
+      <!-- Error Summary -->
+      <div v-if="Object.keys(errors).length" class="error-summary">
+        <i class="fas fa-exclamation-circle"></i>
+        <div class="error-content">
+          <h4>Tafadhali sahihisha makosa yafuatayo:</h4>
+          <ul>
+            <li v-for="(error, field) in errors" :key="field">
+              {{ error[0] }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Loan Details Grid -->
+      <div class="form-grid">
+        <!-- Loan Amount -->
+        <div class="form-group required">
+          <label for="amount">
+            <i class="fas fa-money-bill-wave"></i>
+            Kiasi cha Mkopo (TZS)
+          </label>
+          <div class="currency-input">
+            <span class="currency-symbol">TZS</span>
+            <input
+              type="number"
+              id="amount"
+              v-model.number="form.amount"
+              @input="calculateLoan"
+              class="form-control with-currency"
+              :class="{ 'is-invalid': errors.amount }"
+              placeholder="500000"
+              min="50000"
+              step="10000"
+              required
+            />
+          </div>
+          <span class="input-hint"
+            >Kiasi cha chini: TZS 50,000 • Kiasi cha juu: TZS 50,000,000</span
+          >
+          <span v-if="errors.amount" class="error-text">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ errors.amount }}
+          </span>
+        </div>
+
+        <!-- Interest Rate -->
+        <div class="form-group required">
+          <label for="interest_rate">
+            <i class="fas fa-percent"></i>
+            Riba (%)
+          </label>
+          <input
+            type="number"
+            id="interest_rate"
+            v-model.number="form.interest_rate"
+            @input="calculateLoan"
+            class="form-control"
+            :class="{ 'is-invalid': errors.interest_rate }"
+            placeholder="10"
+            min="0"
+            max="100"
+            step="0.1"
+            required
+          />
+          <span class="input-hint">Asilimia ya riba kwa mwaka</span>
+          <span v-if="errors.interest_rate" class="error-text">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ errors.interest_rate }}
+          </span>
+        </div>
+
+        <!-- Duration -->
+        <div class="form-group required">
+          <label for="duration_months">
+            <i class="fas fa-calendar-alt"></i>
+            Muda wa Mkopo
+          </label>
+          <select
+            id="duration_months"
+            v-model="form.duration_months"
+            @change="calculateLoan"
+            class="form-control"
+            :class="{ 'is-invalid': errors.duration_months }"
+            required
+          >
+            <option value="">Chagua muda</option>
+            <option value="1">Mwezi 1</option>
+            <option value="2">Miezi 2</option>
+            <option value="3">Miezi 3</option>
+            <option value="4">Miezi 4</option>
+            <option value="5">Miezi 5</option>
+            <option value="6">Miezi 6</option>
+            <option value="7">Miezi 7</option>
+            <option value="8">Miezi 8</option>
+            <option value="9">Miezi 9</option>
+            <option value="10">Miezi 10</option>
+            <option value="11">Miezi 11</option>
+            <option value="12">Mwaka 1</option>
+            <option value="18">Miezi 18</option>
+            <option value="24">Miaka 2</option>
+            <option value="36">Miaka 3</option>
+            <option value="48">Miaka 4</option>
+            <option value="60">Miaka 5</option>
+          </select>
+          <span v-if="errors.duration_months" class="error-text">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ errors.duration_months }}
+          </span>
+        </div>
+
+        <!-- Payment Frequency -->
+        <div class="form-group required">
+          <label for="payment_frequency">
+            <i class="fas fa-clock"></i>
+            Muda wa Malipo
+          </label>
+          <select
+            id="payment_frequency"
+            v-model="form.payment_frequency"
+            @change="calculateLoan"
+            class="form-control"
+            :class="{ 'is-invalid': errors.payment_frequency }"
+            required
+          >
+            <option value="monthly">Kila Mwezi</option>
+            <option value="weekly">Kila Wiki</option>
+            <option value="daily">Kila Siku</option>
+          </select>
+          <span v-if="errors.payment_frequency" class="error-text">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ errors.payment_frequency }}
+          </span>
+        </div>
+
+        <!-- Start Date -->
+        <div class="form-group required">
+          <label for="start_date">
+            <i class="fas fa-calendar-check"></i>
+            Tarehe ya Kuanza
+          </label>
+          <input
+            type="date"
+            id="start_date"
+            v-model="form.start_date"
+            @change="calculateLoan"
+            class="form-control"
+            :class="{ 'is-invalid': errors.start_date }"
+            :min="today"
+            required
+          />
+          <span v-if="errors.start_date" class="error-text">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ errors.start_date }}
+          </span>
+        </div>
+
+        <!-- Purpose -->
+        <div class="form-group full-width">
+          <label for="purpose">
+            <i class="fas fa-bullseye"></i>
+            Madhumuni ya Mkopo
+          </label>
+          <textarea
+            id="purpose"
+            v-model="form.purpose"
+            class="form-control"
+            :class="{ 'is-invalid': errors.purpose }"
+            rows="2"
+            placeholder="Eleza kwa nini unahitaji mkopo huu..."
+          ></textarea>
+          <span v-if="errors.purpose" class="error-text">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ errors.purpose }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Loan Calculation Summary -->
+      <div v-if="loanCalculated" class="calculation-summary">
+        <h3>Muhtasari wa Mkopo</h3>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <span class="summary-label">Kiasi cha Mkopo:</span>
+            <span class="summary-value">{{ formatCurrency(form.amount) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Riba ({{ form.interest_rate }}%):</span>
+            <span class="summary-value">{{ formatCurrency(loanSummary.interest) }}</span>
+          </div>
+          <div class="summary-item total">
+            <span class="summary-label">Jumla ya Kurejesha:</span>
+            <span class="summary-value">{{ formatCurrency(loanSummary.total_amount) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Malipo kwa {{ getFrequencyText }}:</span>
+            <span class="summary-value">{{ formatCurrency(loanSummary.installment_amount) }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Idadi ya Malipo:</span>
+            <span class="summary-value">{{ loanSummary.installments }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Tarehe ya Kukamilisha:</span>
+            <span class="summary-value">{{ formatDate(loanSummary.end_date) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collateral Section -->
+      <div class="section-card">
+        <div class="section-header">
+          <i class="fas fa-gem"></i>
+          <h3>Dhamana</h3>
+          <button type="button" class="btn-add" @click="showAddCollateral = true">
+            <i class="fas fa-plus"></i>
+            Ongeza Dhamana
+          </button>
+        </div>
+
+        <div v-if="form.collaterals.length > 0" class="collaterals-list">
+          <div v-for="(collateral, index) in form.collaterals" :key="index" class="collateral-item">
+            <div class="collateral-icon">
+              <i :class="getCollateralIcon(collateral.type)"></i>
+            </div>
+            <div class="collateral-details">
+              <span class="collateral-name">{{ collateral.name }}</span>
+              <span class="collateral-type">{{ collateral.type }}</span>
+              <span class="collateral-value">{{ formatCurrency(collateral.value) }}</span>
+            </div>
+            <button type="button" class="btn-remove" @click="removeCollateral(index)" title="Ondoa">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="empty-state-small">
+          <i class="fas fa-gem"></i>
+          <p>Hakuna dhamana iliyoongezwa</p>
+          <p class="hint">Dhamana si lazima lakini inasaidia kupata mkopo kwa urahisi</p>
+        </div>
+      </div>
+
+      <!-- Guarantors Section -->
+      <div class="section-card">
+        <div class="section-header">
+          <i class="fas fa-users"></i>
+          <h3>Wadhamini</h3>
+          <button type="button" class="btn-add" @click="showAddGuarantor = true">
+            <i class="fas fa-plus"></i>
+            Ongeza Mdhamini
+          </button>
+        </div>
+
+        <div v-if="form.guarantors.length > 0" class="guarantors-list">
+          <div v-for="(guarantor, index) in form.guarantors" :key="index" class="guarantor-item">
+            <img
+              :src="guarantor.photo || '/default-avatar.png'"
+              :alt="guarantor.name"
+              class="guarantor-avatar"
+            />
+            <div class="guarantor-details">
+              <span class="guarantor-name">{{ guarantor.name }}</span>
+              <span class="guarantor-relation">{{ guarantor.relationship }}</span>
+              <span class="guarantor-phone">{{ guarantor.phone }}</span>
+            </div>
+            <button type="button" class="btn-remove" @click="removeGuarantor(index)" title="Ondoa">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="empty-state-small">
+          <i class="fas fa-users"></i>
+          <p>Hakuna mdhamini aliyeongezwa</p>
+          <p class="hint">Wadhamini wanasaidia kuimarisha ombi lako la mkopo</p>
+        </div>
+      </div>
+
+      <!-- Terms and Conditions -->
+      <div class="terms-section">
+        <label class="checkbox-label">
+          <input type="checkbox" v-model="form.terms_accepted" required />
+          <span class="checkmark"></span>
+          <span class="terms-text">
+            Nakubali <a href="#" @click.prevent="showTerms = true">Sheria na Masharti</a> ya mkopo
+          </span>
+        </label>
+        <span v-if="errors.terms_accepted" class="error-text">
+          <i class="fas fa-exclamation-circle"></i>
+          {{ errors.terms_accepted }}
+        </span>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <router-link to="/loans" class="btn-secondary">
+          <i class="fas fa-times"></i>
+          Ghairi
+        </router-link>
+        <button type="submit" class="btn-primary" :disabled="saving">
+          <span v-if="saving" class="spinner"></span>
+          <span v-else>
+            <i class="fas fa-paper-plane"></i>
+            {{ isEdit ? 'Hifadhi Mabadiliko' : 'Tuma Ombi' }}
+          </span>
+        </button>
+      </div>
+    </form>
+
+    <!-- Add Collateral Modal -->
+    <div v-if="showAddCollateral" class="modal-overlay" @click="showAddCollateral = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Ongeza Dhamana</h3>
+          <button class="close-btn" @click="showAddCollateral = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="collateral_name">Jina la Dhamana</label>
+            <input
+              type="text"
+              id="collateral_name"
+              v-model="newCollateral.name"
+              class="form-control"
+              placeholder="Mfano: Gari, Nyumba, Shamba"
+            />
+          </div>
+          <div class="form-group">
+            <label for="collateral_type">Aina ya Dhamana</label>
+            <select id="collateral_type" v-model="newCollateral.type" class="form-control">
+              <option value="land">Shamba/Ardhi</option>
+              <option value="vehicle">Gari</option>
+              <option value="equipment">Vifaa</option>
+              <option value="title_deed">Hati ya Miliki</option>
+              <option value="other">Nyingine</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="collateral_value">Thamani (TZS)</label>
+            <input
+              type="number"
+              id="collateral_value"
+              v-model.number="newCollateral.value"
+              class="form-control"
+              placeholder="5000000"
+              min="0"
+            />
+          </div>
+          <div class="form-group">
+            <label for="collateral_description">Maelezo</label>
+            <textarea
+              id="collateral_description"
+              v-model="newCollateral.description"
+              class="form-control"
+              rows="2"
+              placeholder="Maelezo mafupi kuhusu dhamana"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showAddCollateral = false" class="btn-secondary">Ghairi</button>
+          <button
+            @click="addCollateral"
+            class="btn-primary"
+            :disabled="!newCollateral.name || !newCollateral.value"
+          >
+            Ongeza
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Guarantor Modal -->
+    <div v-if="showAddGuarantor" class="modal-overlay" @click="showAddGuarantor = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Ongeza Mdhamini</h3>
+          <button class="close-btn" @click="showAddGuarantor = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="search-box mb-3">
+            <i class="fas fa-search search-icon"></i>
+            <input
+              type="text"
+              v-model="guarantorSearch"
+              @input="searchGuarantors"
+              placeholder="Tafuta mdhamini kwa jina au simu..."
+              class="search-input"
+            />
+          </div>
+
+          <div v-if="guarantorResults.length > 0" class="search-results">
+            <div
+              v-for="guarantor in guarantorResults"
+              :key="guarantor.id"
+              class="customer-result"
+              @click="selectGuarantor(guarantor)"
+            >
+              <img
+                :src="guarantor.photo || '/default-avatar.png'"
+                :alt="guarantor.name"
+                class="result-avatar"
+              />
+              <div class="result-info">
+                <span class="result-name">{{ guarantor.name }}</span>
+                <span class="result-details"
+                  >{{ guarantor.phone }} • {{ guarantor.relationship }}</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <div v-if="guarantorNoResults" class="no-results-small">
+            <i class="fas fa-user-slash"></i>
+            <p>Hakuna mdhamini aliyepatikana</p>
+          </div>
+
+          <div class="form-group mt-3">
+            <label for="new_guarantor_name">Au ingiza taarifa za mdhamini mpya</label>
+            <input
+              type="text"
+              id="new_guarantor_name"
+              v-model="newGuarantor.name"
+              class="form-control"
+              placeholder="Jina kamili"
+            />
+          </div>
+          <div class="form-group">
+            <input
+              type="text"
+              v-model="newGuarantor.phone"
+              class="form-control"
+              placeholder="Namba ya simu"
+            />
+          </div>
+          <div class="form-group">
+            <input
+              type="text"
+              v-model="newGuarantor.relationship"
+              class="form-control"
+              placeholder="Uhusiano (Mfano: Kaka, Rafiki)"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showAddGuarantor = false" class="btn-secondary">Ghairi</button>
+          <button
+            @click="addGuarantor"
+            class="btn-primary"
+            :disabled="!newGuarantor.name || !newGuarantor.phone"
+          >
+            Ongeza
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Terms and Conditions Modal -->
+    <div v-if="showTerms" class="modal-overlay" @click="showTerms = false">
+      <div class="modal-content large-modal" @click.stop>
+        <div class="modal-header">
+          <h3>Sheria na Masharti ya Mkopo</h3>
+          <button class="close-btn" @click="showTerms = false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body terms-body">
+          <h4>1. Masharti ya Jumla</h4>
+          <p>
+            Mkopo huu unatolewa kwa mujibu wa sheria na kanuni za mikopo ndogo ndogo. Mkopaji
+            anakubali kurejesha kiasi cha mkopo pamoja na riba iliyokubaliwa kwa muda uliopangwa.
+          </p>
+
+          <h4>2. Riba na Malipo</h4>
+          <p>
+            Riba ya {{ form.interest_rate || 'X' }}% itahesabiwa kwa kiasi cha mkopo. Malipo
+            yatafanywa kwa mujibu wa muda uliochaguliwa (kila siku, wiki, au mwezi).
+          </p>
+
+          <h4>3. Adhabu ya Kuchelewa</h4>
+          <p>
+            Endapo mkopaji atachelewa kulipa, adhabu ya {{ defaultPenalty }}% ya kiasi cha malipo
+            itatozwa kwa kila siku ya kuchelewa.
+          </p>
+
+          <h4>4. Dhamana</h4>
+          <p>
+            Dhamana yoyote iliyotolewa itabaki kuwa mali ya kampuni hadi mkopo ulipwe kikamilifu.
+          </p>
+
+          <h4>5. Wadhamini</h4>
+          <p>Wadhamini wanakubali kuwajibika kwa mkopo endapo mkopaji atashindwa kulipa.</p>
+
+          <h4>6. Uvunjaji wa Masharti</h4>
+          <p>
+            Endapo mkopaji atavunja masharti yoyote ya makubaliano haya, kampuni ina haki ya
+            kuchukua hatua za kisheria.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button @click="showTerms = false" class="btn-primary">Nimeelewa</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div v-if="showToast" class="toast-notification" :class="toastType">
+      <i :class="toastIcon"></i>
+      <span>{{ toastMessage }}</span>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { formatCurrency, formatDate } from '@/utils/formatters'
+import debounce from 'lodash/debounce'
+import axios from 'axios'
+
+const route = useRoute()
+const router = useRouter()
+
+// API base URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+
+// Props
+const props = defineProps({
+  isEdit: {
+    type: Boolean,
+    default: false,
+  },
+  loanId: {
+    type: String,
+    default: null,
+  },
+})
+
+// State
+const preselectedCustomer = computed(() => route.query.customer_id)
+const selectedCustomer = ref(null)
+const customerSearch = ref('')
+const searchResults = ref([])
+const customersLoading = ref(false)
+const noResults = ref(false)
+const saving = ref(false)
+const errors = ref({})
+const showAddCollateral = ref(false)
+const showAddGuarantor = ref(false)
+const showTerms = ref(false)
+const guarantorSearch = ref('')
+const guarantorResults = ref([])
+const guarantorLoading = ref(false)
+const guarantorNoResults = ref(false)
+const defaultPenalty = ref(5)
+
+// Toast
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref('success')
+
+// Form data
+const form = reactive({
+  customer_id: null,
+  amount: '',
+  interest_rate: 10,
+  duration_months: '',
+  payment_frequency: 'monthly',
+  payment_days: null,
+  start_date: '',
+  purpose: '',
+  collaterals: [],
+  guarantors: [],
+  terms_accepted: false,
+  notes: '',
+})
+
+// New collateral
+const newCollateral = reactive({
+  name: '',
+  type: 'land',
+  value: '',
+  description: '',
+})
+
+// New guarantor
+const newGuarantor = reactive({
+  name: '',
+  phone: '',
+  relationship: '',
+})
+
+// Loan calculation
+const loanCalculated = computed(() => {
+  return form.amount && form.interest_rate && form.duration_months && form.start_date
+})
+
+const loanSummary = computed(() => {
+  if (!loanCalculated.value) return {}
+
+  const amount = parseFloat(form.amount) || 0
+  const rate = parseFloat(form.interest_rate) || 0
+  const months = parseInt(form.duration_months) || 0
+
+  const interest = amount * (rate / 100)
+  const totalAmount = amount + interest
+
+  let installments = months
+  if (form.payment_frequency === 'weekly') {
+    installments = months * 4
+  } else if (form.payment_frequency === 'daily') {
+    installments = months * 30
+  }
+
+  const installmentAmount = totalAmount / installments
+
+  // Calculate end date
+  const startDate = new Date(form.start_date)
+  const endDate = new Date(startDate)
+  endDate.setMonth(startDate.getMonth() + months)
+
+  // Generate payment days based on frequency
+  generatePaymentDays()
+
+  return {
+    interest,
+    total_amount: totalAmount,
+    installments,
+    installment_amount: installmentAmount,
+    end_date: endDate.toISOString().split('T')[0],
+  }
+})
+
+const getFrequencyText = computed(() => {
+  const texts = {
+    monthly: 'Mwezi',
+    weekly: 'Wiki',
+    daily: 'Siku',
+  }
+  return texts[form.payment_frequency] || 'Mwezi'
+})
+
+const today = computed(() => {
+  return new Date().toISOString().split('T')[0]
+})
+
+const toastIcon = computed(() => {
+  return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
+})
+
+// Methods
+// Alternative search implementation
+const searchCustomers = debounce(async () => {
+  if (!customerSearch.value || customerSearch.value.length < 2) {
+    searchResults.value = []
+    noResults.value = false
+    return
+  }
+
+  customersLoading.value = true
+
+  try {
+    // Try different endpoint patterns
+    const response = await axios.get(`${API_URL}/customers`, {
+      params: {
+        search: customerSearch.value,
+        per_page: 10,
+      },
+    })
+
+    console.log('Search response:', response.data)
+
+    // Handle different response structures
+    let customers = []
+
+    if (response.data.data?.data) {
+      // Paginated response: { data: { data: [...] } }
+      customers = response.data.data.data
+    } else if (response.data.data) {
+      // Direct array: { data: [...] }
+      customers = response.data.data
+    } else if (Array.isArray(response.data)) {
+      // Direct array: [...]
+      customers = response.data
+    }
+
+    searchResults.value = customers.map((c) => ({
+      id: c.id,
+      first_name: c.first_name || '',
+      last_name: c.last_name || '',
+      phone: c.phone || '',
+      occupation: c.occupation || '',
+      monthly_income: parseFloat(c.monthly_income) || 0,
+      profile_photo: c.profile_photo_url || c.avatar || '/default-avatar.png',
+    }))
+
+    noResults.value = searchResults.value.length === 0
+  } catch (error) {
+    console.error('Error searching customers:', error)
+
+    // For development, use mock data
+    if (import.meta.env.DEV) {
+      searchResults.value = []
+      noResults.value = false
+    } else {
+      showToastMessage('Hitilafu katika kutafuta wateja', 'error')
+      searchResults.value = []
+      noResults.value = true
+    }
+  } finally {
+    customersLoading.value = false
+  }
+}, 500)
+
+const selectCustomer = (customer) => {
+  selectedCustomer.value = customer
+  form.customer_id = customer.id
+  customerSearch.value = ''
+  searchResults.value = []
+}
+
+const changeCustomer = () => {
+  selectedCustomer.value = null
+  form.customer_id = null
+}
+
+const calculateLoan = () => {
+  // Trigger computation
+}
+
+const generatePaymentDays = () => {
+  const startDate = new Date(form.start_date)
+  const day = startDate.getDate()
+
+  switch (form.payment_frequency) {
+    case 'monthly':
+      form.payment_days = JSON.stringify({ days: [day] })
+      break
+    case 'weekly':
+      const weekday = startDate.getDay() // 0 = Sunday, 1 = Monday, etc.
+      form.payment_days = JSON.stringify({ days: [weekday] })
+      break
+    case 'daily':
+      form.payment_days = JSON.stringify({ days: [1, 2, 3, 4, 5, 6, 7] })
+      break
+  }
+}
+
+const getCollateralIcon = (type) => {
+  const icons = {
+    land: 'fas fa-tree',
+    vehicle: 'fas fa-car',
+    equipment: 'fas fa-tools',
+    title_deed: 'fas fa-file-alt',
+    other: 'fas fa-box',
+  }
+  return icons[type] || 'fas fa-gem'
+}
+
+// Collateral methods
+const addCollateral = () => {
+  form.collaterals.push({
+    name: newCollateral.name,
+    type: newCollateral.type,
+    value: newCollateral.value,
+    description: newCollateral.description,
+  })
+
+  // Reset form
+  newCollateral.name = ''
+  newCollateral.type = 'land'
+  newCollateral.value = ''
+  newCollateral.description = ''
+
+  showAddCollateral.value = false
+  showToastMessage('Dhamana imeongezwa', 'success')
+}
+
+const removeCollateral = (index) => {
+  form.collaterals.splice(index, 1)
+  showToastMessage('Dhamana imeondolewa', 'info')
+}
+
+// Guarantor methods
+const searchGuarantors = debounce(async () => {
+  if (!guarantorSearch.value) {
+    guarantorResults.value = []
+    guarantorNoResults.value = false
+    return
+  }
+
+  guarantorLoading.value = true
+
+  try {
+    const response = await axios.get(`${API_URL}/customers`, {
+      params: {
+        search: guarantorSearch.value,
+        per_page: 10,
+      },
+    })
+
+    if (response.data.success) {
+      const customers = response.data.data.data || []
+      guarantorResults.value = customers.map((c) => ({
+        id: c.id,
+        name: `${c.first_name} ${c.last_name}`,
+        phone: c.phone,
+        relationship: '',
+        photo: c.profile_photo_url,
+      }))
+      guarantorNoResults.value = customers.length === 0
+    }
+  } catch (error) {
+    console.error('Error searching guarantors:', error)
+  } finally {
+    guarantorLoading.value = false
+  }
+}, 500)
+
+const selectGuarantor = (guarantor) => {
+  form.guarantors.push({
+    id: guarantor.id,
+    name: guarantor.name,
+    phone: guarantor.phone,
+    relationship: guarantor.relationship || 'Rafiki',
+    photo: guarantor.photo,
+  })
+
+  guarantorSearch.value = ''
+  guarantorResults.value = []
+  showAddGuarantor.value = false
+  showToastMessage('Mdhamini ameongezwa', 'success')
+}
+
+const addGuarantor = () => {
+  form.guarantors.push({
+    id: Date.now(),
+    name: newGuarantor.name,
+    phone: newGuarantor.phone,
+    relationship: newGuarantor.relationship || 'Rafiki',
+    photo: null,
+  })
+
+  // Reset form
+  newGuarantor.name = ''
+  newGuarantor.phone = ''
+  newGuarantor.relationship = ''
+
+  showAddGuarantor.value = false
+  showToastMessage('Mdhamini ameongezwa', 'success')
+}
+
+const removeGuarantor = (index) => {
+  form.guarantors.splice(index, 1)
+  showToastMessage('Mdhamini ameondolewa', 'info')
+}
+
+// Load loan data for editing
+const loadLoanData = async () => {
+  if (props.isEdit && props.loanId) {
+    try {
+      const response = await axios.get(`${API_URL}/loans/${props.loanId}`)
+
+      if (response.data.success) {
+        const loan = response.data.data
+
+        // Populate form
+        form.customer_id = loan.customer_id
+        form.amount = loan.amount
+        form.interest_rate = loan.interest_rate
+        form.duration_months = loan.duration_months
+        form.payment_frequency = loan.payment_frequency
+        form.payment_days = loan.payment_days
+        form.start_date = loan.start_date?.split('T')[0] || ''
+        form.purpose = loan.purpose || ''
+        form.notes = loan.notes || ''
+
+        // Load customer data
+        if (loan.customer) {
+          selectedCustomer.value = {
+            id: loan.customer.id,
+            first_name: loan.customer.first_name,
+            last_name: loan.customer.last_name,
+            phone: loan.customer.phone,
+            occupation: loan.customer.occupation,
+            monthly_income: parseFloat(loan.customer.monthly_income),
+            profile_photo: loan.customer.profile_photo_url,
+          }
+        }
+
+        // Load collaterals if any
+        if (loan.collateral) {
+          form.collaterals.push({
+            id: loan.collateral.id,
+            name: loan.collateral.description || 'Dhamana',
+            type: loan.collateral.type || 'other',
+            value: loan.collateral.estimated_value,
+            description: loan.collateral.description,
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error loading loan:', error)
+      showToastMessage('Hitilafu katika kupakia taarifa za mkopo', 'error')
+    }
+  }
+}
+
+// Form submission
+const submitForm = async () => {
+  saving.value = true
+  errors.value = {}
+
+  try {
+    // Validate
+    if (!selectedCustomer.value && !form.customer_id) {
+      errors.value.customer = ['Tafadhali chagua mteja']
+    }
+    if (!form.amount || form.amount < 50000) {
+      errors.value.amount = ['Kiasi cha mkopo kinatakiwa kuwa angalau TZS 50,000']
+    }
+    if (!form.interest_rate) {
+      errors.value.interest_rate = ['Riba inahitajika']
+    }
+    if (!form.duration_months) {
+      errors.value.duration_months = ['Muda wa mkopo unahitajika']
+    }
+    if (!form.start_date) {
+      errors.value.start_date = ['Tarehe ya kuanza inahitajika']
+    }
+    if (!form.terms_accepted) {
+      errors.value.terms_accepted = ['Lazima ukubali sheria na masharti']
+    }
+
+    if (Object.keys(errors.value).length > 0) {
+      saving.value = false
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    // Generate payment days if not already set
+    if (!form.payment_days) {
+      generatePaymentDays()
+    }
+
+    // Prepare loan data for API
+    const loanData = {
+      customer_id: form.customer_id,
+      amount: parseFloat(form.amount),
+      interest_rate: parseFloat(form.interest_rate),
+      duration_months: parseInt(form.duration_months),
+      payment_frequency: form.payment_frequency,
+      payment_days: form.payment_days,
+      start_date: form.start_date,
+      purpose: form.purpose || null,
+      notes: form.notes || null,
+    }
+
+    let response
+
+    if (props.isEdit && props.loanId) {
+      // Update existing loan
+      response = await axios.put(`${API_URL}/loans/${props.loanId}`, loanData)
+    } else {
+      // Create new loan
+      response = await axios.post(`${API_URL}/loans`, loanData)
+    }
+
+    if (response.data.success) {
+      // Handle collaterals if any
+      if (form.collaterals.length > 0) {
+        await saveCollaterals(response.data.data.id)
+      }
+
+      // Handle guarantors if any (you'll need to create this endpoint)
+      if (form.guarantors.length > 0) {
+        await saveGuarantors(response.data.data.id)
+      }
+
+      showToastMessage(
+        props.isEdit
+          ? 'Mkopo umehaririwa kwa mafanikio!'
+          : 'Ombi la mkopo limetumwa kwa mafanikio!',
+        'success',
+      )
+
+      setTimeout(() => {
+        router.push('/loans')
+      }, 1500)
+    }
+  } catch (error) {
+    console.error('Error submitting loan:', error)
+
+    if (error.response?.status === 422) {
+      errors.value = error.response.data.errors || {}
+      showToastMessage('Tafadhali sahihisha makosa kwenye fomu', 'error')
+    } else {
+      showToastMessage(
+        error.response?.data?.message || 'Hitilafu imetokea. Tafadhali jaribu tena.',
+        'error',
+      )
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } finally {
+    saving.value = false
+  }
+}
+
+// In your saveCollaterals function
+const saveCollaterals = async (loanId) => {
+  for (const collateral of form.collaterals) {
+    try {
+      const collateralData = {
+        loan_id: loanId,
+        customer_id: form.customer_id,
+        type: collateral.type || 'other',
+        name: collateral.name || 'Collateral',
+        description: collateral.description || collateral.name || '',
+        estimated_value: parseFloat(collateral.value) || 0,
+        status: 'pending',
+        document_path: 'hamna',
+        image_path: 'none',
+      }
+
+      console.log('Saving collateral:', collateralData) // Debug log
+
+      const response = await axios.post(`${API_URL}/collaterals`, collateralData)
+
+      if (response.data.success) {
+        showToastMessage('Dhamana imehifadhiwa', 'success')
+      }
+    } catch (error) {
+      console.error('Error saving collateral:', error)
+      console.error('Error response:', error.response?.data)
+
+      // Show detailed error message
+      let errorMessage = 'Hitilafu katika kuhifadhi dhamana'
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+
+      if (error.response?.data?.errors) {
+        // Show validation errors
+        const errors = Object.values(error.response.data.errors).flat()
+        errorMessage = errors.join(', ')
+      }
+
+      if (error.response?.data?.debug) {
+        console.log('Debug info:', error.response.data.debug)
+      }
+
+      showToastMessage(errorMessage, 'error')
+    }
+  }
+}
+
+// Save guarantors
+const saveGuarantors = async (loanId) => {
+  if (form.guarantors.length === 0) return
+
+  const savePromises = form.guarantors.map(async (guarantor) => {
+    const guarantorData = {
+      loan_id: loanId,
+      customer_id: form.customer_id,
+      name: guarantor.name || '',
+      phone: guarantor.phone || '',
+      relationship: guarantor.relationship || 'Rafiki',
+      id_number: guarantor.id_number || null,
+      id_type: guarantor.id_type || null,
+      occupation: guarantor.occupation || null,
+      address: guarantor.address || null,
+    }
+
+    return axios.post(`${API_URL}/guarantors`, guarantorData)
+  })
+
+  try {
+    const responses = await Promise.all(savePromises)
+
+    // Check if all were successful
+    const allSuccessful = responses.every((res) => res.data.success)
+
+    if (allSuccessful) {
+      showToastMessage('Wadhamini wote wamehifadhiwa kwa mafanikio', 'success')
+    } else {
+      showToastMessage('Baadhi ya wadhamini walishindwa kuhifadhiwa', 'warning')
+    }
+  } catch (error) {
+    console.error('Error saving guarantors:', error)
+
+    let errorMessage = 'Hitilafu katika kuhifadhi wadhamini'
+
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    }
+
+    showToastMessage(errorMessage, 'error')
+  }
+}
+
+// Toast
+const showToastMessage = (message, type = 'success') => {
+  toastMessage.value = message
+  toastType.value = type
+  showToast.value = true
+
+  setTimeout(() => {
+    showToast.value = false
+  }, 3000)
+}
+
+// Load preselected customer or edit data
+onMounted(async () => {
+  if (preselectedCustomer.value) {
+    try {
+      const response = await axios.get(`${API_URL}/customers/${preselectedCustomer.value}`)
+
+      if (response.data.success) {
+        const customer = response.data.data
+        selectedCustomer.value = {
+          id: customer.id,
+          first_name: customer.first_name,
+          last_name: customer.last_name,
+          phone: customer.phone,
+          occupation: customer.occupation,
+          monthly_income: parseFloat(customer.monthly_income),
+          profile_photo: customer.profile_photo_url,
+        }
+        form.customer_id = customer.id
+      }
+    } catch (error) {
+      console.error('Error loading customer:', error)
+    }
+  }
+
+  if (props.isEdit && props.loanId) {
+    await loadLoanData()
+  }
+})
+</script>
+
+<style scoped>
+.loan-form-container {
+  padding: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* Header */
+.form-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.form-header h2 {
+  font-size: 2rem;
+  color: #1a2639;
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.header-subtitle {
+  color: #666;
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Customer Selector */
+.customer-selector {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  margin-bottom: 25px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border: 1px solid #eef2f6;
+}
+
+.selector-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.selector-header i {
+  font-size: 1.5rem;
+  color: #3498db;
+}
+
+.selector-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.search-box {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  z-index: 1;
+}
+
+.search-input {
+  width: 80%;
+  padding: 12px 15px 12px 45px;
+  border: 2px solid #d6e2ee;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+  background: #f8fafc;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3498db;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* Search Results */
+.search-results {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+}
+
+.customer-result {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 15px;
+  cursor: pointer;
+  transition: background 0.3s;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.customer-result:last-child {
+  border-bottom: none;
+}
+
+.customer-result:hover {
+  background: #f8fafc;
+}
+
+.result-avatar {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.result-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 3px;
+}
+
+.result-details {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.no-results {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.no-results i {
+  font-size: 3rem;
+  color: #cbd5e0;
+  margin-bottom: 15px;
+}
+
+.no-results p {
+  margin-bottom: 20px;
+}
+
+.no-results-small {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+}
+
+.no-results-small i {
+  font-size: 2rem;
+  color: #cbd5e0;
+  margin-bottom: 10px;
+}
+
+/* Selected Customer */
+.selected-customer {
+  margin-bottom: 25px;
+}
+
+.customer-card {
+  background: linear-gradient(135deg, #667eea 0%, #667eea 100%);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: white;
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+}
+
+.customer-avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;
+}
+
+.customer-details {
+  flex: 1;
+}
+
+.customer-details h3 {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+}
+
+.customer-details p {
+  margin: 3px 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.customer-details i {
+  width: 20px;
+  margin-right: 5px;
+}
+
+.btn-change {
+  padding: 8px 15px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.btn-change:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Error Summary */
+.error-summary {
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 10px;
+  padding: 15px 20px;
+  margin-bottom: 25px;
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.error-summary i {
+  color: #e74c3c;
+  font-size: 1.5rem;
+}
+
+.error-content h4 {
+  color: #e74c3c;
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.error-content ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #666;
+}
+
+/* Form Grid */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+.form-group {
+  margin-bottom: 5px;
+}
+
+.form-group.full-width {
+  grid-column: span 2;
+}
+
+.form-group.required label::after {
+  content: '*';
+  color: #e74c3c;
+  margin-left: 4px;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-group label i {
+  color: #3498db;
+  width: 18px;
+}
+
+.form-control {
+  width: 80%;
+  padding: 12px 15px;
+  border: 2px solid #d3e2f1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+  background: #f8fafc;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #3498db;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-control.is-invalid {
+  border-color: #e74c3c;
+  background: #fff8f8;
+}
+
+.currency-input {
+  position: relative;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.form-control.with-currency {
+  padding-left: 60px;
+}
+
+.input-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 4px;
+}
+
+.error-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+/* Calculation Summary */
+.calculation-summary {
+  background: linear-gradient(135deg, #f8fafc, #eef2f6);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 25px;
+  border: 1px solid #e2e8f0;
+}
+
+.calculation-summary h3 {
+  margin: 0 0 15px;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #eef2f6;
+}
+
+.summary-item.total {
+  grid-column: span 2;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+}
+
+.summary-item.total .summary-label,
+.summary-item.total .summary-value {
+  color: white;
+  font-weight: 600;
+}
+
+.summary-label {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.summary-value {
+  color: #333;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* Section Cards */
+.section-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 25px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  border: 1px solid #eef2f6;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.section-header i {
+  font-size: 1.2rem;
+  color: #3498db;
+}
+
+.section-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.1rem;
+  flex: 1;
+}
+
+.btn-add {
+  padding: 6px 12px;
+  background: #e3f2fd;
+  color: #1976d2;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.3s;
+}
+
+.btn-add:hover {
+  background: #1976d2;
+  color: white;
+}
+
+/* Collaterals List */
+.collaterals-list,
+.guarantors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.collateral-item,
+.guarantor-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #eef2f6;
+}
+
+.collateral-icon {
+  width: 45px;
+  height: 45px;
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.2rem;
+}
+
+.guarantor-avatar {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.collateral-details,
+.guarantor-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collateral-name,
+.guarantor-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.collateral-type,
+.guarantor-relation {
+  font-size: 0.8rem;
+  color: #3498db;
+}
+
+.collateral-value,
+.guarantor-phone {
+  font-size: 0.85rem;
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.btn-remove {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: #999;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.btn-remove:hover {
+  color: #e74c3c;
+  background: #fee;
+}
+
+/* Empty State Small */
+.empty-state-small {
+  text-align: center;
+  padding: 30px 20px;
+  color: #999;
+}
+
+.empty-state-small i {
+  font-size: 2rem;
+  color: #cbd5e0;
+  margin-bottom: 10px;
+}
+
+.empty-state-small p {
+  margin: 0 0 5px;
+}
+
+.empty-state-small .hint {
+  font-size: 0.8rem;
+  color: #999;
+  font-style: italic;
+}
+
+/* Terms Section */
+.terms-section {
+  margin: 25px 0;
+  padding: 15px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  position: relative;
+  padding-left: 30px;
+  user-select: none;
+}
+
+.checkbox-label input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkmark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 20px;
+  width: 20px;
+  background: white;
+  border: 2px solid #eef2f6;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.checkbox-label:hover input ~ .checkmark {
+  background: #f8fafc;
+  border-color: #3498db;
+}
+
+.checkbox-label input:checked ~ .checkmark {
+  background: #3498db;
+  border-color: #3498db;
+}
+
+.checkmark:after {
+  content: '';
+  position: absolute;
+  display: none;
+}
+
+.checkbox-label input:checked ~ .checkmark:after {
+  display: block;
+}
+
+.checkbox-label .checkmark:after {
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.terms-text {
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.terms-text a {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.terms-text a:hover {
+  text-decoration: underline;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 12px 30px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+  border: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
+}
+
+.btn-secondary {
+  background: white;
+  color: #666;
+  border: 1px solid #eef2f6;
+}
+
+.btn-secondary:hover {
+  background: #f8fafc;
+  color: #333;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: white;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease;
+}
+
+.modal-content.large-modal {
+  max-width: 800px;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #eef2f6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #999;
+  padding: 5px;
+}
+
+.close-btn:hover {
+  color: #666;
+}
+
+.modal-body {
+  padding: 25px;
+}
+
+.terms-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.terms-body h4 {
+  color: #333;
+  margin: 20px 0 10px;
+}
+
+.terms-body h4:first-child {
+  margin-top: 0;
+}
+
+.terms-body p {
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+.modal-footer {
+  padding: 20px 25px;
+  border-top: 1px solid #eef2f6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.mb-3 {
+  margin-bottom: 15px;
+}
+
+.mt-3 {
+  margin-top: 15px;
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Toast Notification */
+.toast-notification {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  padding: 15px 25px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: slideInRight 0.3s ease;
+  z-index: 2100;
+  border-left: 4px solid;
+}
+
+.toast-notification.success {
+  border-left-color: #27ae60;
+}
+
+.toast-notification.error {
+  border-left-color: #e74c3c;
+}
+
+.toast-notification i {
+  font-size: 1.2rem;
+}
+
+.toast-notification.success i {
+  color: #27ae60;
+}
+
+.toast-notification.error i {
+  color: #e74c3c;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .loan-form-container {
+    padding: 15px;
+  }
+
+  .form-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .customer-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .btn-change {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-group.full-width {
+    grid-column: span 1;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-item.total {
+    grid-column: span 1;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .modal-content {
+    width: 95%;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .toast-notification {
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .customer-result {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .collateral-item,
+  .guarantor-item {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .btn-remove {
+    margin-top: 10px;
+  }
+}
+
+.clear-search {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 5px;
+  z-index: 2;
+}
+
+.clear-search:hover {
+  color: #e74c3c;
+}
+
+.search-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #eef2f6;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+</style>
