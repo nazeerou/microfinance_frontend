@@ -71,22 +71,10 @@ const routes = [
     component: Login,
     meta: { requiresAuth: false },
   },
-
-  // {
-  //   path: '/forgot-password',
-  //   name: 'ForgotPassword',
-  //   component: ForgotPassword,
-  //   meta: { requiresAuth: false }
-  // },
-  // {
-  //   path: '/reset-password/:token',
-  //   name: 'ResetPassword',
-  //   component: ResetPassword,
-  //   meta: { requiresAuth: false }
-  // },
   {
     path: '/',
     component: MainLayout,
+    meta: { requiresAuth: true },
     children: [
       {
         path: '',
@@ -96,7 +84,7 @@ const routes = [
         path: '/profile',
         name: 'profile',
         component: () => import('@/views/profile/UserProfile.vue'),
-        meta: { requiresAuth: true },
+        // meta: { requiresAuth: true },
       },
       {
         path: 'dashboard',
@@ -387,6 +375,19 @@ const routes = [
       //     icon: 'question-circle'
       //   }
       // }
+
+      // {
+      //   path: '/forgot-password',
+      //   name: 'ForgotPassword',
+      //   component: ForgotPassword,
+      //   meta: { requiresAuth: false }
+      // },
+      // {
+      //   path: '/reset-password/:token',
+      //   name: 'ResetPassword',
+      //   component: ResetPassword,
+      //   meta: { requiresAuth: false }
+      // },
     ],
   },
   {
