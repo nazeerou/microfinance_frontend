@@ -83,7 +83,7 @@ const routes = [
     path: '/app',
     component: MainLayout,
     meta: {
-      requiresAuth: true, // All routes under /app require authentication
+      requiresAuth: false, // All routes under /app require authentication
     },
     children: [
       // Dashboard - default route for /app
