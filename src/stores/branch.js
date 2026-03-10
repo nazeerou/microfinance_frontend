@@ -11,7 +11,7 @@ import axios from 'axios'
 //     error: null,
 //   }),
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://tamara.bas.co.tz/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 export const useBranchStore = defineStore('branch', {
   state: () => ({
