@@ -136,10 +136,12 @@
 </template>
 
 <script setup>
+// ✅ FIX: Import all necessary Vue functions
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import Chart from 'chart.js/auto'
 import { useDashboardStore } from '@/stores/dashboard'
+// Import formatters
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'
 
 const router = useRouter()
@@ -153,6 +155,7 @@ let paymentChartInstance = null
 
 const loanChartPeriod = ref('month')
 const paymentChartPeriod = ref('month')
+const error = ref(null)
 
 // Data
 const statistics = ref([
@@ -223,12 +226,19 @@ const currentDate = ref(
   }),
 )
 
-// Computed property for loading state
+// ✅ Computed property - now properly imported and defined
 const isLoading = computed(() => dashboardStore.loading)
+
+// ✅ Another computed property example (you can add more as needed)
+const totalActiveLoans = computed(() => {
+  const activeStat = statistics.value.find((s) => s.title === 'Mikopo Inayoendelea')
+  return activeStat ? activeStat.value : 0
+})
 
 // Methods
 const loadDashboardData = async () => {
   try {
+    error.value = null
     const data = await dashboardStore.fetchDashboardData()
 
     // Update statistics
@@ -259,9 +269,13 @@ const loadDashboardData = async () => {
     recentActivities.value = data.recent_activities || []
     upcomingPayments.value = data.upcoming_payments || []
 
-    updateCharts()
+    // Update charts after data is loaded
+    setTimeout(() => {
+      updateCharts()
+    }, 100)
   } catch (error) {
     console.error('Error loading dashboard:', error)
+    error.value = 'Imeshindwa kupakia data. Tafadhali jaribu tena.'
   }
 }
 
@@ -277,11 +291,11 @@ const updateCharts = async () => {
       loanChartInstance = new Chart(loanChart.value, {
         type: 'line',
         data: {
-          labels: loanData.labels || [],
+          labels: loanData.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
           datasets: [
             {
               label: 'Mikopo',
-              data: loanData.datasets?.[0]?.data || loanData.values || [],
+              data: loanData.datasets?.[0]?.data || loanData.values || [0, 0, 0, 0, 0, 0],
               borderColor: '#2196F3',
               backgroundColor: 'rgba(33, 150, 243, 0.1)',
               tension: 0.4,
@@ -321,11 +335,11 @@ const updateCharts = async () => {
       paymentChartInstance = new Chart(paymentChart.value, {
         type: 'bar',
         data: {
-          labels: paymentData.labels || [],
+          labels: paymentData.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
           datasets: [
             {
               label: 'Malipo',
-              data: paymentData.datasets?.[0]?.data || paymentData.values || [],
+              data: paymentData.datasets?.[0]?.data || paymentData.values || [0, 0, 0, 0, 0, 0],
               backgroundColor: '#4CAF50',
               borderRadius: 5,
             },
@@ -391,12 +405,17 @@ const formatTime = (timestamp) => {
 }
 
 const recordPayment = (payment) => {
-  router.push(`/payments/create?loan_id=${payment.loan_id}`)
+  router.push(`/app/payments/create?loan_id=${payment.loan_id}`)
 }
 
 // Watches
-watch(loanChartPeriod, () => updateCharts())
-watch(paymentChartPeriod, () => updateCharts())
+watch(loanChartPeriod, () => {
+  updateCharts()
+})
+
+watch(paymentChartPeriod, () => {
+  updateCharts()
+})
 
 // Lifecycle
 onMounted(() => {
