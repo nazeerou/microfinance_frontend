@@ -424,7 +424,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import Sidebar from './Sidebar.vue'
+import Sidebar from './SideBar.vue'
 import Header from './AppHeader.vue'
 import Footer from './AppFooter.vue'
 import { useAuthStore } from '@/stores/auth'
