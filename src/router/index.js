@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/components/layout/MainLayout.vue'
+import { useAuthStore } from '@/stores/auth'
 
 // Auth pages
 import Login from '@/views/auth/Login.vue'
@@ -8,7 +9,6 @@ import Login from '@/views/auth/Login.vue'
 
 // Dashboard
 import Dashboard from '@/views/Dashboard.vue'
-import { useAuthStore } from '@/stores/auth' // Add this import
 
 // Customer pages
 import CustomerList from '@/views/customers/CustomerList.vue'
@@ -39,62 +39,82 @@ import Report from '@/views/reports/Report.vue'
 // import CustomerHistory from '@/views/reports/CustomerHistory.vue'
 // import ProfitReport from '@/views/reports/ProfitReport.vue'
 
-// User management (admin only)
-// import UserList from '@/views/users/UserList.vue'
-// import UserCreate from '@/views/users/UserCreate.vue'
-// import UserEdit from '@/views/users/UserEdit.vue'
-
-// Profile and settings
-// import Profile from '@/views/profile/Profile.vue'
-// import Settings from '@/views/settings/Settings.vue'
-
-// Audit trails (admin only)
-// import AuditTrail from '@/views/audit/AuditTrail.vue'
-
-// Search results
-// import SearchResults from '@/views/search/SearchResults.vue'
-
-// Notifications
-// import Notifications from '@/views/notifications/Notifications.vue'
-
-// Help page
-// import Help from '@/views/help/Help.vue'
-
 // 404 page
 import NotFound from '@/views/errors/NotFound.vue'
-// import TestLogin from '@/views/auth/TestLogin.vue'
 
 const routes = [
+  // Public routes - no authentication required
   {
     path: '/login',
     name: 'Login',
     component: Login,
-    meta: { requiresAuth: false },
+    meta: {
+      requiresAuth: false,
+      title: 'Ingia - TAMARA MicroFinance',
+    },
   },
+  // {
+  //   path: '/forgot-password',
+  //   name: 'ForgotPassword',
+  //   component: ForgotPassword,
+  //   meta: {
+  //     requiresAuth: false,
+  //     title: 'Nimesahau Nenosiri - TAMARA MicroFinance'
+  //   }
+  // },
+  // {
+  //   path: '/reset-password/:token',
+  //   name: 'ResetPassword',
+  //   component: ResetPassword,
+  //   meta: {
+  //     requiresAuth: false,
+  //     title: 'Weka Nenosiri Jipya - TAMARA MicroFinance'
+  //   }
+  // },
+
+  // Root path - redirect to login
   {
     path: '/',
+    redirect: '/login',
+  },
+
+  // Protected routes - require authentication
+  {
+    path: '/app',
     component: MainLayout,
-    meta: { requiresAuth: true },
+    meta: {
+      requiresAuth: true, // All routes under /app require authentication
+    },
     children: [
+      // Dashboard - default route for /app
       {
         path: '',
-        redirect: '/dashboard',
-      },
-      {
-        path: '/profile',
-        name: 'profile',
-        component: () => import('@/views/profile/UserProfile.vue'),
-        // meta: { requiresAuth: true },
+        redirect: '/app/dashboard',
       },
       {
         path: 'dashboard',
         name: 'Dashboard',
         component: Dashboard,
         meta: {
-          title: 'TAMARA MicroFinance',
+          title: 'Dashibodi',
           icon: 'chart-pie',
+          permission: 'view_dashboard',
         },
       },
+
+      // Profile
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/profile/UserProfile.vue'),
+        meta: {
+          title: 'Wasifu Wangu',
+          icon: 'user-circle',
+          permission: 'view_profile',
+        },
+      },
+
+      // Customer routes
       {
         path: 'customers',
         name: 'Customers',
@@ -135,6 +155,8 @@ const routes = [
           icon: 'user-edit',
         },
       },
+
+      // Loan routes
       {
         path: 'loans',
         name: 'Loans',
@@ -186,6 +208,8 @@ const routes = [
       //     icon: 'check-circle'
       //   }
       // },
+
+      // Payment routes
       {
         path: 'payments',
         name: 'Payments',
@@ -216,6 +240,8 @@ const routes = [
       //     icon: 'receipt'
       //   }
       // },
+
+      // Collateral routes
       {
         path: 'collateral',
         name: 'Collateral',
@@ -236,6 +262,8 @@ const routes = [
           icon: 'info-circle',
         },
       },
+
+      // Report routes
       {
         path: 'reports',
         name: 'Report',
@@ -286,6 +314,8 @@ const routes = [
       //     icon: 'chart-pie'
       //   }
       // },
+
+      // Admin only routes (commented out)
       // {
       //   path: 'users',
       //   name: 'Users',
@@ -319,15 +349,8 @@ const routes = [
       //     icon: 'user-edit'
       //   }
       // },
-      // {
-      //   path: 'profile',
-      //   name: 'Profile',
-      //   component: Profile,
-      //   meta: {
-      //     title: 'Wasifu Wangu',
-      //     icon: 'user-circle'
-      //   }
-      // },
+
+      // Settings
       // {
       //   path: 'settings',
       //   name: 'Settings',
@@ -337,6 +360,8 @@ const routes = [
       //     icon: 'cog'
       //   }
       // },
+
+      // Audit trails
       // {
       //   path: 'audit-trails',
       //   name: 'AuditTrail',
@@ -348,6 +373,8 @@ const routes = [
       //     icon: 'history'
       //   }
       // },
+
+      // Search
       // {
       //   path: 'search',
       //   name: 'Search',
@@ -357,6 +384,8 @@ const routes = [
       //     icon: 'search'
       //   }
       // },
+
+      // Notifications
       // {
       //   path: 'notifications',
       //   name: 'Notifications',
@@ -366,6 +395,8 @@ const routes = [
       //     icon: 'bell'
       //   }
       // },
+
+      // Help
       // {
       //   path: 'help',
       //   name: 'Help',
@@ -375,25 +406,17 @@ const routes = [
       //     icon: 'question-circle'
       //   }
       // }
-
-      // {
-      //   path: '/forgot-password',
-      //   name: 'ForgotPassword',
-      //   component: ForgotPassword,
-      //   meta: { requiresAuth: false }
-      // },
-      // {
-      //   path: '/reset-password/:token',
-      //   name: 'ResetPassword',
-      //   component: ResetPassword,
-      //   meta: { requiresAuth: false }
-      // },
     ],
   },
+
+  // 404 page - catch all unmatched routes
   {
     path: '/:pathMatch(.*)*',
-    name: 'not-found',
-    component: () => import('@/views/PageNotFound.vue'),
+    name: 'NotFound',
+    component: NotFound,
+    meta: {
+      title: '404 - Ukurasa Haupatikani',
+    },
   },
 ]
 
@@ -409,120 +432,136 @@ const router = createRouter({
   },
 })
 
-// Add navigation guard
 // Navigation guard
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
+  // Set page title
+  if (to.meta.title) {
+    document.title = `${to.meta.title} | TAMARA MicroFinance`
+  } else {
+    document.title = 'TAMARA MicroFinance'
+  }
+
   // Check for inactivity logout reason
   if (to.query.reason === 'inactive') {
-    // Show inactivity message if needed
     console.log('Logged out due to inactivity')
   }
 
-  if (to.meta.requiresAuth) {
-    const isAuthenticated = await authStore.checkAuth()
+  // Check if route requires authentication
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
 
+  // Get authentication status
+  const isAuthenticated = await authStore.checkAuth()
+
+  // Case 1: Route is login page
+  if (to.path === '/login') {
+    if (isAuthenticated) {
+      // If already authenticated, go to dashboard
+      next({ path: '/app/dashboard' })
+    } else {
+      // Allow access to login
+      next()
+    }
+    return
+  }
+
+  // Case 2: Route requires authentication
+  if (requiresAuth) {
     if (!isAuthenticated) {
+      // Not authenticated - redirect to login with return URL
       next({
-        name: 'login',
+        path: '/login',
         query: { redirect: to.fullPath },
       })
-    } else {
-      // Track activity on route change
-      authStore.trackActivity()
-      next()
+      return
     }
-  } else if (to.meta.requiresGuest) {
-    const isAuthenticated = await authStore.checkAuth()
 
-    if (isAuthenticated) {
-      next({ name: 'dashboard' })
-    } else {
-      next()
+    // Check permission if required
+    if (to.meta.permission) {
+      const hasPermission = await checkUserPermission(to.meta.permission)
+      if (!hasPermission) {
+        // No permission - redirect to dashboard
+        next({ path: '/app/dashboard' })
+        return
+      }
     }
-  } else {
+
+    // Check role if required
+    if (to.meta.role && authStore.user?.role !== to.meta.role) {
+      // Wrong role - redirect to dashboard
+      next({ path: '/app/dashboard' })
+      return
+    }
+
+    // Track activity on route change
+    authStore.trackActivity()
+
+    // All checks passed
+    next()
+  }
+
+  // Case 3: Public route (like root redirect)
+  else {
     next()
   }
 })
 
+// Permission check helper
+async function checkUserPermission(permission) {
+  const authStore = useAuthStore()
+
+  // If no user, no permissions
+  if (!authStore.user) {
+    return false
+  }
+
+  // Admin has all permissions
+  if (authStore.user.role === 'admin') {
+    return true
+  }
+
+  // Define role-based permissions
+  const permissions = {
+    loan_officer: [
+      'view_dashboard',
+      'view_profile',
+      'view_customers',
+      'create_customer',
+      'edit_customer',
+      'view_customer',
+      'view_loans',
+      'create_loan',
+      'approve_loan',
+      'view_loan',
+      'view_payments',
+      'create_payment',
+      'view_collateral',
+      'view_reports',
+    ],
+    accountant: [
+      'view_dashboard',
+      'view_profile',
+      'view_customers',
+      'view_loans',
+      'view_loan',
+      'view_payments',
+      'create_payment',
+      'view_reports',
+    ],
+    viewer: [
+      'view_dashboard',
+      'view_profile',
+      'view_customers',
+      'view_loans',
+      'view_loan',
+      'view_payments',
+      'view_reports',
+    ],
+  }
+
+  const userPermissions = permissions[authStore.user.role] || []
+  return userPermissions.includes(permission)
+}
+
 export default router
-
-// Navigation guards (commented out as in original)
-// router.beforeEach(async (to, from, next) => {
-//   // Set page title
-//   document.title = to.meta.title ? `${to.meta.title} | TAMARA MicroFinance` : 'TAMARA MicroFinance'
-//
-//   const authStore = useAuthStore()
-//
-//   // Check if route requires authentication
-//   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
-//
-//   // Public routes - allow access even if not authenticated
-//   if (!requiresAuth) {
-//     // If trying to access login page while already authenticated, redirect to dashboard
-//     if (to.path === '/login' && authStore.isAuthenticated) {
-//       next('/dashboard')
-//       return
-//     }
-//     next()
-//     return
-//   }
-//
-//   // Protected routes - require authentication
-//   if (!authStore.isAuthenticated) {
-//     next('/login')
-//     return
-//   }
-//
-//   // Check role-based access
-//   const requiresRole = to.meta.role
-//   if (requiresRole && authStore.user?.role !== requiresRole) {
-//     next('/dashboard')
-//     return
-//   }
-//
-//   // Check permission-based access
-//   const requiresPermission = to.meta.permission
-//   if (requiresPermission) {
-//     const hasPermission = await checkPermission(requiresPermission)
-//     if (!hasPermission) {
-//       next('/dashboard')
-//       return
-//     }
-//   }
-//
-//   next()
-// })
-
-// Permission check helper (commented out as in original)
-// async function checkPermission(permission) {
-//   const authStore = useAuthStore()
-//
-//   // Admin has all permissions
-//   if (authStore.user?.role === 'admin') {
-//     return true
-//   }
-//
-//   // Define role-based permissions
-//   const permissions = {
-//     loan_officer: [
-//       'view_customers',
-//       'create_customer',
-//       'edit_customer',
-//       'view_loans',
-//       'create_loan',
-//       'approve_loan',
-//       'view_payments',
-//       'create_payment',
-//       'view_collateral',
-//       'view_reports',
-//     ],
-//     accountant: ['view_customers', 'view_loans', 'view_payments', 'create_payment', 'view_reports'],
-//   }
-//
-//   const userPermissions = permissions[authStore.user?.role] || []
-//   return userPermissions.includes(permission)
-// }
-
-// export default router
