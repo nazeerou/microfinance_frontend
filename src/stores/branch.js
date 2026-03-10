@@ -1,7 +1,17 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+
+// export const useBranchStore = defineStore('branch', {
+//   state: () => ({
+//     branches: [],
+//     currentBranch: null,
+//     loading: false,
+//     error: null,
+//   }),
+
+const API_URL = import.meta.env.VITE_API_URL || 'https://tamara.bas.co.tz/api/v1'
 
 export const useBranchStore = defineStore('branch', {
   state: () => ({
