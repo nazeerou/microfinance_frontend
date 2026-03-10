@@ -410,23 +410,22 @@ const router = createRouter({
 })
 
 // Add navigation guard
+// Navigation guard
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
 
   // Check for inactivity logout reason
   if (to.query.reason === 'inactive') {
+    // Show inactivity message if needed
     console.log('Logged out due to inactivity')
   }
 
-  // If route requires authentication
-  if (requiresAuth) {
+  if (to.meta.requiresAuth) {
     const isAuthenticated = await authStore.checkAuth()
 
     if (!isAuthenticated) {
-      // Redirect to login with return URL
       next({
-        name: 'Login',
+        name: 'login',
         query: { redirect: to.fullPath },
       })
     } else {
@@ -434,19 +433,15 @@ router.beforeEach(async (to, from, next) => {
       authStore.trackActivity()
       next()
     }
-  }
-  // If trying to access login while already authenticated
-  else if (to.path === '/login') {
+  } else if (to.meta.requiresGuest) {
     const isAuthenticated = await authStore.checkAuth()
 
     if (isAuthenticated) {
-      next({ name: 'Dashboard' })
+      next({ name: 'dashboard' })
     } else {
       next()
     }
-  }
-  // Public route
-  else {
+  } else {
     next()
   }
 })
