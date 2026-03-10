@@ -50,7 +50,7 @@ const routes = [
     component: Login,
     meta: {
       requiresAuth: false,
-      title: 'Ingia - TAMARA MicroFinance',
+      title: 'Ingia - TAMARA MicroFinance System',
     },
   },
   // {
@@ -83,7 +83,7 @@ const routes = [
     path: '/app',
     component: MainLayout,
     meta: {
-      requiresAuth: false, // All routes under /app require authentication
+      requiresAuth: true, // ✅ FIXED: This should be true for protected routes
     },
     children: [
       // Dashboard - default route for /app
@@ -198,16 +198,6 @@ const routes = [
           icon: 'file-invoice',
         },
       },
-      // {
-      //   path: 'loans/:id/approve',
-      //   name: 'LoanApproval',
-      //   component: LoanApproval,
-      //   meta: {
-      //     title: 'Idhinisho la Mkopo',
-      //     permission: 'approve_loan',
-      //     icon: 'check-circle'
-      //   }
-      // },
 
       // Payment routes
       {
@@ -230,16 +220,6 @@ const routes = [
           icon: 'cash-register',
         },
       },
-      // {
-      //   path: 'payments/:id',
-      //   name: 'PaymentDetail',
-      //   component: PaymentDetail,
-      //   meta: {
-      //     title: 'Taarifa za Malipo',
-      //     permission: 'view_payment',
-      //     icon: 'receipt'
-      //   }
-      // },
 
       // Collateral routes
       {
@@ -274,148 +254,18 @@ const routes = [
           icon: 'calendar-day',
         },
       },
-      // {
-      //   path: 'reports/outstanding',
-      //   name: 'OutstandingLoans',
-      //   component: OutstandingLoans,
-      //   meta: {
-      //     title: 'Mikopo Inayodaiwa',
-      //     permission: 'view_reports',
-      //     icon: 'chart-line'
-      //   }
-      // },
-      // {
-      //   path: 'reports/defaulted',
-      //   name: 'DefaultedLoans',
-      //   component: DefaultedLoans,
-      //   meta: {
-      //     title: 'Mikopo Iliyochelewa',
-      //     permission: 'view_reports',
-      //     icon: 'exclamation-triangle'
-      //   }
-      // },
-      // {
-      //   path: 'reports/customer/:id',
-      //   name: 'CustomerHistory',
-      //   component: CustomerHistory,
-      //   meta: {
-      //     title: 'Historia ya Mteja',
-      //     permission: 'view_reports',
-      //     icon: 'history'
-      //   }
-      // },
-      // {
-      //   path: 'reports/profit',
-      //   name: 'ProfitReport',
-      //   component: ProfitReport,
-      //   meta: {
-      //     title: 'Ripoti ya Faida',
-      //     permission: 'view_reports',
-      //     icon: 'chart-pie'
-      //   }
-      // },
-
-      // Admin only routes (commented out)
-      // {
-      //   path: 'users',
-      //   name: 'Users',
-      //   component: UserList,
-      //   meta: {
-      //     title: 'Watumiaji',
-      //     permission: 'manage_users',
-      //     role: 'admin',
-      //     icon: 'users-cog'
-      //   }
-      // },
-      // {
-      //   path: 'users/create',
-      //   name: 'UserCreate',
-      //   component: UserCreate,
-      //   meta: {
-      //     title: 'Sajili Mtumiaji',
-      //     permission: 'manage_users',
-      //     role: 'admin',
-      //     icon: 'user-plus'
-      //   }
-      // },
-      // {
-      //   path: 'users/:id/edit',
-      //   name: 'UserEdit',
-      //   component: UserEdit,
-      //   meta: {
-      //     title: 'Hariri Mtumiaji',
-      //     permission: 'manage_users',
-      //     role: 'admin',
-      //     icon: 'user-edit'
-      //   }
-      // },
-
-      // Settings
-      // {
-      //   path: 'settings',
-      //   name: 'Settings',
-      //   component: Settings,
-      //   meta: {
-      //     title: 'Mipangilio',
-      //     icon: 'cog'
-      //   }
-      // },
-
-      // Audit trails
-      // {
-      //   path: 'audit-trails',
-      //   name: 'AuditTrail',
-      //   component: AuditTrail,
-      //   meta: {
-      //     title: 'Audit Trail',
-      //     permission: 'view_audit',
-      //     role: 'admin',
-      //     icon: 'history'
-      //   }
-      // },
-
-      // Search
-      // {
-      //   path: 'search',
-      //   name: 'Search',
-      //   component: SearchResults,
-      //   meta: {
-      //     title: 'Matokeo ya Utafutaji',
-      //     icon: 'search'
-      //   }
-      // },
-
-      // Notifications
-      // {
-      //   path: 'notifications',
-      //   name: 'Notifications',
-      //   component: Notifications,
-      //   meta: {
-      //     title: 'Arifa',
-      //     icon: 'bell'
-      //   }
-      // },
-
-      // Help
-      // {
-      //   path: 'help',
-      //   name: 'Help',
-      //   component: Help,
-      //   meta: {
-      //     title: 'Msaada',
-      //     icon: 'question-circle'
-      //   }
-      // }
     ],
   },
 
-  // 404 page - catch all unmatched routes
+  // ✅ FIXED: 404 page - MUST come AFTER all other routes
+  // This catches any route that doesn't match above
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: NotFound,
     meta: {
       title: '404 - Ukurasa Haupatikani',
+      requiresAuth: false, // 404 page should be public
     },
   },
 ]
@@ -448,11 +298,17 @@ router.beforeEach(async (to, from, next) => {
     console.log('Logged out due to inactivity')
   }
 
-  // Check if route requires authentication
+  // ✅ FIXED: Check if route requires authentication
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
 
   // Get authentication status
   const isAuthenticated = await authStore.checkAuth()
+
+  // ✅ FIXED: Special case for 404 page - always allow access
+  if (to.name === 'NotFound') {
+    next()
+    return
+  }
 
   // Case 1: Route is login page
   if (to.path === '/login') {
@@ -501,7 +357,7 @@ router.beforeEach(async (to, from, next) => {
     next()
   }
 
-  // Case 3: Public route (like root redirect)
+  // Case 3: Public route (like root redirect or 404)
   else {
     next()
   }
