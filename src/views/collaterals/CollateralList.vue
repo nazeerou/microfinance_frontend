@@ -768,7 +768,7 @@ const loadCollaterals = async () => {
 
     console.log('Request params:', params)
 
-    const response = await axios.get(`${API_URL}/api/v1/collaterals`, { params })
+    const response = await axios.get(`${API_URL}/collaterals`, { params })
 
     console.log('API Response:', response.data)
 
@@ -997,7 +997,7 @@ const confirmTake = async () => {
   actionLoading.value = true
 
   try {
-    await axios.post(`/api/v1/collaterals/${selectedCollateral.value.id}/take`, {
+    await axios.post(`${API_URL}/collaterals/${selectedCollateral.value.id}/take`, {
       notes: actionNotes.value,
     })
 
@@ -1031,7 +1031,7 @@ const confirmRelease = async () => {
   actionLoading.value = true
 
   try {
-    await axios.post(`/api/v1/collaterals/${selectedCollateral.value.id}/release`, {
+    await axios.post(`${API_URL}/collaterals/${selectedCollateral.value.id}/release`, {
       notes: actionNotes.value,
     })
 
@@ -1063,7 +1063,7 @@ const deleteCollateral = async () => {
   deleteLoading.value = true
 
   try {
-    await axios.delete(`/api/v1/collaterals/${collateralToDelete.value.id}`)
+    await axios.delete(`${API_URL}/collaterals/${collateralToDelete.value.id}`)
 
     showToastMessage('Dhamana imefutwa kwa mafanikio', 'success')
     closeDeleteModal()
