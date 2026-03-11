@@ -1154,7 +1154,7 @@ const loadPayments = async () => {
     if (filters.max_amount) params.max_amount = filters.max_amount
 
     console.log('Fetching payments with params:', params)
-    const response = await axios.get('/api/v1/payments', { params })
+    const response = await axios.get(`${API_URL}/payments`, { params })
     console.log('API Response:', response.data)
 
     if (response.data.success && response.data.data) {
@@ -1188,7 +1188,7 @@ const loadPayments = async () => {
 
 const loadStatistics = async () => {
   try {
-    const response = await axios.get('/api/v1/payments/stats')
+    const response = await axios.get(`${API_URL}/payments/stats`)
     console.log('Statistics response:', response.data)
 
     if (response.data.success && response.data.data) {
@@ -1385,7 +1385,7 @@ const verifyPayment = async (payment) => {
   actionLoading.value = true
 
   try {
-    const response = await axios.post(`/api/v1/payments/${payment.id}/verify`)
+    const response = await axios.post(`${API_URL}/payments/${payment.id}/verify`)
 
     if (response.data.success) {
       showToastMessage('Malipo yamehakikiwa kwa mafanikio', 'success')
@@ -1420,7 +1420,7 @@ const confirmReverse = async () => {
   actionLoading.value = true
 
   try {
-    const response = await axios.post(`/api/v1/payments/${selectedPayment.value.id}/reverse`, {
+    const response = await axios.post(`${API_URL}/payments/${selectedPayment.value.id}/reverse`, {
       reason: reverseReason.value,
     })
 
@@ -1455,11 +1455,11 @@ const confirmDelete = async () => {
   try {
     if (paymentToDelete.value) {
       // Delete single payment
-      await axios.delete(`/api/v1/payments/${paymentToDelete.value.id}`)
+      await axios.delete(`${API_URL}payments/${paymentToDelete.value.id}`)
       showToastMessage('Malipo yamefutwa kwa mafanikio', 'success')
     } else {
       // Bulk delete
-      await axios.post('/api/v1/payments/bulk-delete', {
+      await axios.post(`${API_URL}payments/bulk-delete`, {
         ids: selectedPayments.value,
       })
       showToastMessage(`Malipo ${selectedPayments.value.length} yamefutwa`, 'success')
@@ -1491,7 +1491,7 @@ const bulkVerify = async () => {
   actionLoading.value = true
 
   try {
-    const response = await axios.post('/api/v1/payments/bulk-verify', {
+    const response = await axios.post(`${API_URL}/payments/bulk-verify`, {
       ids: unverifiedIds,
     })
 
@@ -1531,7 +1531,7 @@ const exportPayments = async () => {
     if (filters.date_from) params.append('date_from', filters.date_from)
     if (filters.date_to) params.append('date_to', filters.date_to)
 
-    const response = await axios.get(`/api/v1/payments/export?${params.toString()}`, {
+    const response = await axios.get(`${API_URL}/payments/export?${params.toString()}`, {
       responseType: 'blob',
     })
 
@@ -1564,7 +1564,7 @@ const showToastMessage = (message, type = 'success') => {
 // Debug function to check API response
 const checkApiResponse = async () => {
   try {
-    const response = await axios.get('/api/v1/payments?per_page=1')
+    const response = await axios.get(`${API_URL}/payments?per_page=1`)
     console.log('API Structure Check:', response.data)
     if (response.data.data?.data?.[0]) {
       const samplePayment = response.data.data.data[0]
