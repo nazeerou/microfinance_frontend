@@ -768,7 +768,7 @@ const loadCollaterals = async () => {
 
     console.log('Request params:', params)
 
-    const response = await axios.get('/api/v1/collaterals', { params })
+    const response = await axios.get(`${API_URL}/api/v1/collaterals`, { params })
 
     console.log('API Response:', response.data)
 
