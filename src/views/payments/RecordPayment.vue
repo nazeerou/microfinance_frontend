@@ -606,7 +606,9 @@ const loadActiveLoans = async () => {
             if (processedLoan.customer.profile_photo) {
               // Check if it's already a full URL
               if (!processedLoan.customer.profile_photo.startsWith('http')) {
-                const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+                // Base URL for images
+                // const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+                const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
                 processedLoan.customer.profile_photo = `${baseUrl}/storage/${processedLoan.customer.profile_photo}`
               }
             }

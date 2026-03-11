@@ -1,7 +1,7 @@
 // import axios from 'axios'
 // import offlineStorage from './offlineStorage'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+// const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // class SyncService {
 //   constructor() {
