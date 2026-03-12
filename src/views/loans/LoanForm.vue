@@ -235,7 +235,6 @@
             @change="calculateLoan"
             class="form-control"
             :class="{ 'is-invalid': errors.start_date }"
-            :min="today"
             required
           />
           <span v-if="errors.start_date" class="error-text">
@@ -243,7 +242,7 @@
             {{ errors.start_date }}
           </span>
         </div>
-
+        <!-- :min="today" -->
         <!-- Purpose -->
         <div class="form-group full-width">
           <label for="purpose">
