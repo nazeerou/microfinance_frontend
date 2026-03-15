@@ -72,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
           return api(originalRequest)
         } catch (refreshError) {
           // Refresh failed - logout
-          await handleLogout('token_refresh_failed')
+          // await handleLogout('token_refresh_failed')
           return Promise.reject(refreshError)
         }
       }
