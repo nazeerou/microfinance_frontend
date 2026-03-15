@@ -20,6 +20,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
+authStore.initAuth() // IMPORTANT
 
 // const trackActivity = () => {
 //   authStore.trackActivity()

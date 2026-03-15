@@ -747,195 +747,75 @@
 // })
 
 // stores/auth.js
-// stores/auth.js
-// stores/auth.js
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
 
 export const useAuthStore = defineStore('auth', () => {
-  // Initialize from localStorage immediately
   const token = ref(localStorage.getItem('token') || null)
   const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
   const permissions = ref([])
   const loading = ref(false)
 
-  // Configure axios
   const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
     },
-    withCredentials: true,
     timeout: 30000,
   })
 
-  // Set authorization header if token exists
-  if (token.value) {
-    api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-  }
+  // Attach token automatically
+  api.interceptors.request.use((config) => {
+    const currentToken = token.value || localStorage.getItem('token')
 
-  // Request interceptor - simple, no refresh logic
-  api.interceptors.request.use(
-    (config) => {
-      // For non-login requests, ensure token is present
-      if (config.url !== '/login') {
-        const currentToken = token.value || localStorage.getItem('token')
-        if (currentToken) {
-          config.headers.Authorization = `Bearer ${currentToken}`
-        }
-      }
-      return config
-    },
-    (error) => Promise.reject(error),
-  )
+    if (currentToken) {
+      config.headers.Authorization = `Bearer ${currentToken}`
+    }
 
-  // Response interceptor - SIMPLIFIED - no refresh, no auto logout
-  api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-      // Just log the error and pass it through
-      console.error('API Error:', error.response?.status, error.config?.url)
-      return Promise.reject(error)
-    },
-  )
+    return config
+  })
 
-  // ✅ ADD THIS: Track activity function (simple version)
-  const trackActivity = () => {
-    // This can be empty or just log if needed
-    console.log('Activity tracked')
-    // You can add your activity tracking logic here if needed
-  }
-
-  // Login method
   const login = async (credentials) => {
     loading.value = true
+
     try {
-      const response = await api.post('/login', credentials)
-      const responseData = response.data
+      const { data } = await api.post('/login', credentials)
 
-      let userData = null
-      let tokenData = null
+      const tokenData = data.data?.token || data.token
+      const userData = data.data?.user || data.user
 
-      if (responseData.data?.token) {
-        tokenData = responseData.data.token
-        userData = responseData.data.user
-        permissions.value = responseData.data.user.permissions?.flat || []
-      } else if (responseData.token) {
-        tokenData = responseData.token
-        userData = responseData.user
-      } else {
-        throw new Error('Invalid response format')
-      }
-
-      // Store token and user
       token.value = tokenData
       user.value = userData
 
-      // Store in localStorage
       localStorage.setItem('token', tokenData)
       localStorage.setItem('user', JSON.stringify(userData))
 
-      // Set default header
-      api.defaults.headers.common['Authorization'] = `Bearer ${tokenData}`
-
-      return responseData
-    } catch (error) {
-      console.error('Login error:', error)
-      throw error
+      return data
     } finally {
       loading.value = false
     }
   }
 
-  // Logout method
-  const logout = async () => {
-    try {
-      const currentToken = token.value || localStorage.getItem('token')
-      if (currentToken) {
-        // Try to call logout endpoint, but don't wait for it
-        api.post('/logout').catch(() => {})
-      }
-    } catch (error) {
-      console.error('Logout error:', error)
-    } finally {
-      // Always clear local data
-      clearAuth()
-    }
-  }
-
-  // Clear auth data
-  const clearAuth = () => {
+  const logout = () => {
     token.value = null
     user.value = null
     permissions.value = []
+
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    delete api.defaults.headers.common['Authorization']
   }
 
-  // Check authentication with token validation
-  const checkAuth = async () => {
-    const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
-
-    // Restore from localStorage if needed
-    if (!token.value && storedToken) {
-      token.value = storedToken
-      api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
-    }
-
-    if (!user.value && storedUser) {
-      try {
-        user.value = JSON.parse(storedUser)
-      } catch (e) {
-        console.error('Failed to parse stored user:', e)
-      }
-    }
-
-    // If no token at all, not authenticated
-    if (!token.value && !storedToken) {
-      return false
-    }
-
-    // If we have user data from localStorage, consider authenticated
-    if (user.value) {
-      return true
-    }
-
-    return false
-  }
-
-  // Simple init - just restore from localStorage, no validation
   const initAuth = () => {
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
 
-    if (storedToken) {
-      token.value = storedToken
-      api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
-    }
-
-    if (storedUser) {
-      try {
-        user.value = JSON.parse(storedUser)
-      } catch (e) {
-        console.error('Failed to parse stored user:', e)
-      }
-    }
-
-    return isAuthenticated.value
+    if (storedToken) token.value = storedToken
+    if (storedUser) user.value = JSON.parse(storedUser)
   }
 
-  // Computed
-  const isAuthenticated = computed(() => {
-    const hasToken = !!(token.value || localStorage.getItem('token'))
-    const hasUser = !!(user.value || localStorage.getItem('user'))
-    return hasToken && hasUser
-  })
-
+  const isAuthenticated = computed(() => !!token.value && !!user.value)
   const userRole = computed(() => user.value?.role || null)
   const userName = computed(() => user.value?.name || 'Guest')
 
@@ -944,14 +824,12 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     permissions,
     loading,
-    isAuthenticated,
-    userRole,
-    userName,
+    api,
     login,
     logout,
     initAuth,
-    checkAuth,
-    trackActivity, // ✅ ADD THIS - now trackActivity is returned
-    api,
+    isAuthenticated,
+    userRole,
+    userName,
   }
 })

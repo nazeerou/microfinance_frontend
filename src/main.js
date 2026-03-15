@@ -15,6 +15,8 @@ app.use(router)
 
 // Initialize sync service with auth store
 const authStore = useAuthStore()
+authStore.initAuth() // IMPORTANT
+
 syncService.init(authStore)
 
 app.mount('#app')
