@@ -757,7 +757,6 @@ export const useAuthStore = defineStore('auth', () => {
   const permissions = ref([])
   const loading = ref(false)
 
-  // Axios instance
   const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
     headers: {
@@ -767,31 +766,21 @@ export const useAuthStore = defineStore('auth', () => {
     timeout: 30000,
   })
 
-  // Attach token automatically to every request
-  api.interceptors.request.use(
-    (config) => {
-      const currentToken = token.value || localStorage.getItem('token')
+  api.interceptors.request.use((config) => {
+    const currentToken = token.value || localStorage.getItem('token')
 
-      if (currentToken) {
-        config.headers.Authorization = `Bearer ${currentToken}`
-      }
+    if (currentToken) {
+      config.headers.Authorization = `Bearer ${currentToken}`
+    }
 
-      return config
-    },
-    (error) => Promise.reject(error),
-  )
+    return config
+  })
 
-  /*
-  |--------------------------------------------------------------------------
-  | LOGIN
-  |--------------------------------------------------------------------------
-  */
   const login = async (credentials) => {
     loading.value = true
 
     try {
-      const response = await api.post('/login', credentials)
-      const data = response.data
+      const { data } = await api.post('/login', credentials)
 
       const tokenData = data.data?.token || data.token
       const userData = data.data?.user || data.user
@@ -803,55 +792,27 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('user', JSON.stringify(userData))
 
       return data
-    } catch (error) {
-      console.error('Login error:', error)
-      throw error
     } finally {
       loading.value = false
     }
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | LOGOUT
-  |--------------------------------------------------------------------------
-  */
   const logout = () => {
     token.value = null
     user.value = null
-    permissions.value = []
 
     localStorage.removeItem('token')
     localStorage.removeItem('user')
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | INIT AUTH (restore after refresh)
-  |--------------------------------------------------------------------------
-  */
   const initAuth = () => {
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
 
-    if (storedToken) {
-      token.value = storedToken
-    }
-
-    if (storedUser) {
-      try {
-        user.value = JSON.parse(storedUser)
-      } catch (e) {
-        console.error('Invalid stored user')
-      }
-    }
+    if (storedToken) token.value = storedToken
+    if (storedUser) user.value = JSON.parse(storedUser)
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | CHECK AUTH
-  |--------------------------------------------------------------------------
-  */
   const checkAuth = () => {
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
@@ -866,36 +827,27 @@ export const useAuthStore = defineStore('auth', () => {
     return true
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | COMPUTED
-  |--------------------------------------------------------------------------
-  */
-  const isAuthenticated = computed(() => {
-    return !!(token.value && user.value)
-  })
+  const trackActivity = () => {
+    console.log('User activity')
+    localStorage.setItem('last_activity', Date.now())
+  }
 
+  const isAuthenticated = computed(() => !!(token.value && user.value))
   const userRole = computed(() => user.value?.role || null)
-
   const userName = computed(() => user.value?.name || 'Guest')
 
-  /*
-  |--------------------------------------------------------------------------
-  | RETURN
-  |--------------------------------------------------------------------------
-  */
   return {
     user,
     token,
     permissions,
     loading,
-
     api,
 
     login,
     logout,
     initAuth,
     checkAuth,
+    trackActivity,
 
     isAuthenticated,
     userRole,
