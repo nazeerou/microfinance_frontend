@@ -748,6 +748,7 @@
 
 // stores/auth.js
 // stores/auth.js
+// stores/auth.js
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
@@ -800,6 +801,13 @@ export const useAuthStore = defineStore('auth', () => {
       return Promise.reject(error)
     },
   )
+
+  // ✅ ADD THIS: Track activity function (simple version)
+  const trackActivity = () => {
+    // This can be empty or just log if needed
+    console.log('Activity tracked')
+    // You can add your activity tracking logic here if needed
+  }
 
   // Login method
   const login = async (credentials) => {
@@ -868,7 +876,7 @@ export const useAuthStore = defineStore('auth', () => {
     delete api.defaults.headers.common['Authorization']
   }
 
-  // ✅ ADD THIS: Check authentication with token validation
+  // Check authentication with token validation
   const checkAuth = async () => {
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
@@ -942,7 +950,8 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     initAuth,
-    checkAuth, // ✅ ADD THIS - now checkAuth is returned
+    checkAuth,
+    trackActivity, // ✅ ADD THIS - now trackActivity is returned
     api,
   }
 })
