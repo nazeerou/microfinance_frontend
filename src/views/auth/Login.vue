@@ -42,7 +42,7 @@ const handleLogin = async () => {
     // console.log('=== LOGIN ATTEMPT ===')
     // console.log('Email:', form.email)
     // console.log('API URL:', import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1')
-    console.log('API URL:', import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1')
+    // console.log('API URL:', import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1')
 
     await authStore.login(form)
 
