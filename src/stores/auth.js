@@ -190,30 +190,25 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Refresh token
   const refreshToken = async () => {
-    const currentToken = token.value || localStorage.getItem('token')
-    if (!currentToken) {
-      throw new Error('No token to refresh')
-    }
-
-    try {
-      const response = await api.get('/refresh')
-      const { data } = response.data
-
-      token.value = data.token
-      localStorage.setItem('token', data.token)
-      api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
-
-      // Update login time on refresh
-      localStorage.setItem('login_time', Date.now().toString())
-
-      // Reset activity on token refresh
-      resetInactivityTimer()
-
-      return data.token
-    } catch (error) {
-      console.error('Refresh token error:', error)
-      throw error
-    }
+    // const currentToken = token.value || localStorage.getItem('token')
+    // if (!currentToken) {
+    //   throw new Error('No token to refresh')
+    // }
+    // try {
+    //   const response = await api.get('/refresh')
+    //   const { data } = response.data
+    //   token.value = data.token
+    //   localStorage.setItem('token', data.token)
+    //   api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
+    //   // Update login time on refresh
+    //   localStorage.setItem('login_time', Date.now().toString())
+    //   // Reset activity on token refresh
+    //   resetInactivityTimer()
+    //   return data.token
+    // } catch (error) {
+    //   console.error('Refresh token error:', error)
+    //   throw error
+    // }
   }
 
   // Logout method
