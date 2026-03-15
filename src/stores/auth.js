@@ -747,6 +747,7 @@
 // })
 
 // stores/auth.js
+// stores/auth.js
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
@@ -867,15 +868,37 @@ export const useAuthStore = defineStore('auth', () => {
     delete api.defaults.headers.common['Authorization']
   }
 
-  // Simple check if user is authenticated based on localStorage
-  const isAuthenticated = computed(() => {
-    const hasToken = !!(token.value || localStorage.getItem('token'))
-    const hasUser = !!(user.value || localStorage.getItem('user'))
-    return hasToken && hasUser
-  })
+  // ✅ ADD THIS: Check authentication with token validation
+  const checkAuth = async () => {
+    const storedToken = localStorage.getItem('token')
+    const storedUser = localStorage.getItem('user')
 
-  const userRole = computed(() => user.value?.role || null)
-  const userName = computed(() => user.value?.name || 'Guest')
+    // Restore from localStorage if needed
+    if (!token.value && storedToken) {
+      token.value = storedToken
+      api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
+    }
+
+    if (!user.value && storedUser) {
+      try {
+        user.value = JSON.parse(storedUser)
+      } catch (e) {
+        console.error('Failed to parse stored user:', e)
+      }
+    }
+
+    // If no token at all, not authenticated
+    if (!token.value && !storedToken) {
+      return false
+    }
+
+    // If we have user data from localStorage, consider authenticated
+    if (user.value) {
+      return true
+    }
+
+    return false
+  }
 
   // Simple init - just restore from localStorage, no validation
   const initAuth = () => {
@@ -898,6 +921,16 @@ export const useAuthStore = defineStore('auth', () => {
     return isAuthenticated.value
   }
 
+  // Computed
+  const isAuthenticated = computed(() => {
+    const hasToken = !!(token.value || localStorage.getItem('token'))
+    const hasUser = !!(user.value || localStorage.getItem('user'))
+    return hasToken && hasUser
+  })
+
+  const userRole = computed(() => user.value?.role || null)
+  const userName = computed(() => user.value?.name || 'Guest')
+
   return {
     user,
     token,
@@ -909,6 +942,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     initAuth,
+    checkAuth, // ✅ ADD THIS - now checkAuth is returned
     api,
   }
 })
