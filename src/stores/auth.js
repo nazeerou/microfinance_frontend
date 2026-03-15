@@ -5,13 +5,13 @@ import axios from 'axios'
 
 export const useAuthStore = defineStore('auth', () => {
   // Initialize from localStorage immediately
-  const token = ref(localStorage.getItem('token') || null)
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const token = ref(localStorage.getItem('token'))
+  const user = ref(JSON.parse(localStorage.getItem('user')))
   const permissions = ref([])
   const loading = ref(false)
 
   // Inactivity timer
-  let inactivityTimer = null
+  let inactivityTimer = 30 * 60 * 1000
   const INACTIVITY_LIMIT = 30 * 60 * 1000 // 30 minutes in milliseconds
   const lastActivity = ref(Date.now())
 
