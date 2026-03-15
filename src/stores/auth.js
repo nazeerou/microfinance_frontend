@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
       'X-Requested-With': 'XMLHttpRequest',
     },
     withCredentials: true,
-    timeout: 3000,
+    timeout: 30000,
   })
 
   ////online
