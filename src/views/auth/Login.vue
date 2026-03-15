@@ -39,8 +39,9 @@ const handleLogin = async () => {
   debugInfo.value = ''
 
   try {
-    console.log('=== LOGIN ATTEMPT ===')
-    console.log('Email:', form.email)
+    // console.log('=== LOGIN ATTEMPT ===')
+    // console.log('Email:', form.email)
+    // console.log('API URL:', import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1')
     console.log('API URL:', import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1')
 
     await authStore.login(form)
@@ -79,7 +80,7 @@ const handleLogin = async () => {
     } else if (err.response?.status === 404) {
       error.value = `Seva haipatikani (404). Tafadhali hakikisha URL ya API ni sahihi.`
     } else if (err.code === 'ERR_NETWORK') {
-      error.value = 'Haiwezi kuungana na seva. Hakikisha:\n'
+      error.value = 'Haiwezi kuunganishwa na seva:\n'
       // '1. Seva ya backend imewashwa (php artisan serve)\n' +
       // '2. URL ya API ni sahihi (VITE_API_URL)\n' +
       // '3. CORS imesanidiwa vizuri'

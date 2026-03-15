@@ -135,16 +135,6 @@
         </div>
       </div>
 
-      <!-- <div class="stat-card">
-        <div class="stat-icon" style="background: linear-gradient(135deg, #27ae60, #229954)">
-          <i class="fas fa-user-check"></i>
-        </div>
-        <div class="stat-details">
-          <span class="stat-value">{{ statistics.active }}</span>
-          <span class="stat-label">Wanaofanya kazi</span>
-        </div>
-      </div> -->
-
       <div class="stat-card">
         <div class="stat-icon" style="background: linear-gradient(135deg, #f39c12, #e67e22)">
           <i class="fas fa-hand-holding-usd"></i>
@@ -206,7 +196,6 @@
               <th>Mawasiliano</th>
               <th>Kitambulisho</th>
               <th>Kazi / Kipato</th>
-              <!-- <th>Mikopo</th> -->
               <th>Hali</th>
               <th>Tarehe</th>
               <th>Vitendo</th>
@@ -251,32 +240,18 @@
                     <i class="fas fa-phone-alt"></i>
                     {{ customer.phone }}
                   </span>
-                  <!-- <span v-if="customer.email" class="contact-item">
-                    <i class="fas fa-envelope"></i>
-                    {{ customer.email }}
-                  </span> -->
                 </div>
               </td>
               <td>
                 <div class="id-info">
-                  <!-- <span class="id-number">{{ customer.id_number }}</span> -->
                   <span class="id-type">{{ customer.id_type || 'NIDA' }}</span>
                 </div>
               </td>
               <td>
                 <div class="income-info">
                   <span class="occupation">{{ customer.occupation }}</span>
-                  <!-- <span class="income">{{ formatCurrency(customer.monthly_income) }}/mwezi</span> -->
                 </div>
               </td>
-              <!-- <td>
-                <div class="loans-info">
-                  <span class="loans-count">
-                    <strong>{{ customer.loans_count || 0 }}</strong> mikopo
-                  </span>
-                  <span class="loans-total">{{ formatCurrency(customer.total_loans || 0) }}</span>
-                </div>
-              </td> -->
               <td>
                 <span class="status-badge" :class="customer.status">
                   {{ getStatusText(customer.status) }}
@@ -310,7 +285,7 @@
                       <i class="fas fa-edit"></i>
                       <span>Hariri</span>
                     </router-link>
-                    <button @click="viewLoans(customer)" class="action-menu-item">
+                    <button @click="viewCustomerLoans(customer)" class="action-menu-item">
                       <i class="fas fa-hand-holding-usd"></i>
                       <span>Mikopo yake</span>
                     </button>
@@ -403,6 +378,211 @@
           >
             <i class="fas fa-chevron-right"></i>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Loans Modal -->
+    <div v-if="showLoansModal" class="modal-overlay" @click="closeLoansModal">
+      <div class="modal-content loans-modal" @click.stop>
+        <div class="modal-header">
+          <div class="modal-header-left">
+            <i class="fas fa-hand-holding-usd"></i>
+            <h3>Mikopo ya {{ selectedCustomer?.first_name }} {{ selectedCustomer?.last_name }}</h3>
+          </div>
+          <div class="modal-header-actions">
+            <button class="btn-refresh" @click="refreshCustomerLoans" title="Onyesha upya">
+              <i class="fas fa-sync-alt" :class="{ rotating: customerLoansLoading }"></i>
+            </button>
+            <button class="close-btn" @click="closeLoansModal">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-body loans-modal-body">
+          <!-- Summary Cards -->
+          <div class="loans-summary-cards">
+            <div class="summary-card-mini total">
+              <div class="summary-icon">
+                <i class="fas fa-coins"></i>
+              </div>
+              <div class="summary-content">
+                <span class="summary-label">Jumla ya Mikopo</span>
+                <span class="summary-value">{{ customerLoansSummary.total }}</span>
+              </div>
+            </div>
+            <div class="summary-card-mini active">
+              <div class="summary-icon">
+                <i class="fas fa-play-circle"></i>
+              </div>
+              <div class="summary-content">
+                <span class="summary-label">Inayoendelea</span>
+                <span class="summary-value">{{ customerLoansSummary.active }}</span>
+              </div>
+            </div>
+            <div class="summary-card-mini completed">
+              <div class="summary-icon">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <div class="summary-content">
+                <span class="summary-label">Imekamilika</span>
+                <span class="summary-value">{{ customerLoansSummary.completed }}</span>
+              </div>
+            </div>
+            <div class="summary-card-mini defaulted">
+              <div class="summary-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+              </div>
+              <div class="summary-content">
+                <span class="summary-label">Imechelewa</span>
+                <span class="summary-value">{{ customerLoansSummary.defaulted }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Amount Summary -->
+          <div class="amount-summary">
+            <div class="amount-item">
+              <span class="amount-label">Jumla ya Kiasi:</span>
+              <span class="amount-value">{{
+                formatCurrency(customerLoansSummary.total_amount)
+              }}</span>
+            </div>
+            <div class="amount-item">
+              <span class="amount-label">Imelipwa:</span>
+              <span class="amount-value success">{{
+                formatCurrency(customerLoansSummary.paid_amount)
+              }}</span>
+            </div>
+            <div class="amount-item">
+              <span class="amount-label">Inayodaiwa:</span>
+              <span class="amount-value warning">{{
+                formatCurrency(customerLoansSummary.outstanding)
+              }}</span>
+            </div>
+          </div>
+
+          <!-- Loading State -->
+          <div v-if="customerLoansLoading" class="loading-state">
+            <div class="spinner"></div>
+            <span>Inapakia mikopo...</span>
+          </div>
+
+          <!-- Loans Grid -->
+          <div v-else-if="customerLoans.length > 0" class="loans-grid">
+            <div
+              v-for="loan in customerLoans"
+              :key="loan.id"
+              class="loan-card"
+              @click="viewLoanDetails(loan)"
+            >
+              <div class="loan-card-header">
+                <div class="loan-title">
+                  <span class="loan-number">#{{ loan.loan_number }}</span>
+                  <span class="loan-status-badge" :class="loan.status">
+                    {{ getLoanStatusText(loan.status) }}
+                  </span>
+                </div>
+                <span class="loan-date">{{ formatDate(loan.created_at) }}</span>
+              </div>
+
+              <div class="loan-card-body">
+                <div class="loan-amounts">
+                  <div class="amount-row">
+                    <span class="label">Kiasi:</span>
+                    <span class="value">{{ formatCurrency(loan.amount) }}</span>
+                  </div>
+                  <div class="amount-row">
+                    <span class="label">Imelipwa:</span>
+                    <span class="value success">{{ formatCurrency(loan.paid_amount || 0) }}</span>
+                  </div>
+                  <div class="amount-row">
+                    <span class="label">Imebaki:</span>
+                    <span class="value" :class="{ 'text-danger': loan.balance > 0 }">
+                      {{ formatCurrency(loan.balance) }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Payment Status -->
+                <div class="payment-status-section">
+                  <div class="status-header">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Hali ya Malipo</span>
+                  </div>
+                  <div class="payment-progress">
+                    <div class="progress-bar-mini">
+                      <div
+                        class="progress-fill-mini"
+                        :style="{ width: loan.payment_progress + '%' }"
+                        :class="{
+                          success: loan.payment_progress === 100,
+                          warning: loan.payment_progress > 0 && loan.payment_progress < 100,
+                          danger: loan.payment_progress === 0 && loan.balance > 0,
+                        }"
+                      ></div>
+                    </div>
+                    <span class="progress-text">{{ loan.payment_progress }}%</span>
+                  </div>
+                </div>
+
+                <!-- Payment Schedule Summary -->
+                <div class="payment-schedule-summary" v-if="loan.next_payment">
+                  <div class="next-payment">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Malipo yajayo: {{ formatDate(loan.next_payment.due_date) }}</span>
+                  </div>
+                  <div class="payment-amount-mini">
+                    <span>{{ formatCurrency(loan.next_payment.amount) }}</span>
+                    <span class="status-dot" :class="loan.next_payment.status"></span>
+                  </div>
+                </div>
+
+                <!-- Overdue Warning -->
+                <div v-if="loan.overdue_count > 0" class="overdue-warning">
+                  <i class="fas fa-exclamation-circle"></i>
+                  <span>Imechelewa kwa awamu {{ loan.overdue_count }}</span>
+                </div>
+              </div>
+
+              <div class="loan-card-footer">
+                <div class="loan-terms">
+                  <span><i class="fas fa-clock"></i> {{ loan.duration_months }} miezi</span>
+                  <span><i class="fas fa-percent"></i> {{ loan.interest_rate }}%</span>
+                </div>
+                <button class="btn-view-loan" @click.stop="viewLoanDetails(loan)">
+                  <i class="fas fa-eye"></i>
+                  <span>Angalia</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else class="empty-state">
+            <i class="fas fa-hand-holding-usd"></i>
+            <p>Hakuna mikopo kwa mteja huyu</p>
+            <router-link
+              :to="`/loans/create?customer_id=${selectedCustomer?.id}`"
+              class="btn-primary"
+            >
+              <i class="fas fa-plus-circle"></i>
+              Omba Mkopo
+            </router-link>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeLoansModal" class="btn-secondary">Funga</button>
+          <router-link
+            v-if="selectedCustomer"
+            :to="`/loans/create?customer_id=${selectedCustomer.id}`"
+            class="btn-primary"
+          >
+            <i class="fas fa-plus-circle"></i>
+            Omba Mkopo Mpya
+          </router-link>
         </div>
       </div>
     </div>
@@ -645,7 +825,9 @@ const getCustomerProfilePhoto = (customer) => {
 
   // If profile_photo exists but no URL, construct it
   if (customer.profile_photo) {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    // const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+
     return `${baseUrl}/storage/${customer.profile_photo}`
   }
 

@@ -518,13 +518,17 @@ const toastType = ref('success')
 // Check for preselected loan from query params
 const preselectedLoanId = computed(() => route.query.loan_id)
 
+// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+
+const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+
 // Form data
 const form = reactive({
   loan_id: null,
   amount: '',
   payment_type: 'partial',
   payment_method: 'cash',
-  payment_date: today.value,
+  payment_date: '',
   bank_name: '',
   transaction_reference: '',
   mobile_provider: '',
@@ -580,7 +584,7 @@ const loadActiveLoans = async () => {
       params.search = loanSearch.value
     }
 
-    const response = await axios.get('/api/v1/loans', { params })
+    const response = await axios.get(`${API_URL}/loans`, { params })
 
     if (response.data.success && response.data.data) {
       const paginatedData = response.data.data
@@ -606,10 +610,8 @@ const loadActiveLoans = async () => {
             if (processedLoan.customer.profile_photo) {
               // Check if it's already a full URL
               if (!processedLoan.customer.profile_photo.startsWith('http')) {
-                // Base URL for images
-                // const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
-                const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
-                processedLoan.customer.profile_photo = `${baseUrl}/storage/${processedLoan.customer.profile_photo}`
+                // Base URL for images                // const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+                processedLoan.customer.profile_photo = `${API_URL}/storage/${processedLoan.customer.profile_photo}`
               }
             }
 
@@ -645,7 +647,7 @@ const selectLoan = (loan) => {
 
 const loadLoanById = async (loanId) => {
   try {
-    const response = await axios.get(`/api/v1/loans/${loanId}`)
+    const response = await axios.get(`${API_URL}/loans/${loanId}`)
     if (response.data.success && response.data.data) {
       const loan = response.data.data
       if (parseFloat(loan.balance) > 0) {
@@ -671,7 +673,7 @@ const resetForm = () => {
   form.amount = ''
   form.payment_type = 'partial'
   form.payment_method = 'cash'
-  form.payment_date = today.value
+  form.payment_date = ''
   form.bank_name = ''
   form.transaction_reference = ''
   form.mobile_provider = ''
@@ -767,7 +769,7 @@ const submitPayment = async () => {
     console.log('Sending payment data:', paymentData) // Debug log
 
     // Make API call
-    const response = await axios.post('/api/v1/payments', paymentData)
+    const response = await axios.post(`${API_URL}/payments`, paymentData)
 
     if (response.data.success) {
       // Success handling
@@ -816,7 +818,7 @@ const submitPayment = async () => {
         }
       } else {
         // Fallback for unexpected structure
-        showToastMessage('Hitilafu imetokea. Tafadhali jaribu tena.', 'error')
+        showToastMessage('Hitilafu imetokea. Tafadhali jaribu tena.', error.value)
       }
     }
     // Handle 500 server errors

@@ -133,11 +133,11 @@
           </span>
         </div>
 
-        <!-- Interest Rate per Month -->
+        <!-- Interest Rate -->
         <div class="form-group required">
           <label for="interest_rate">
             <i class="fas fa-percent"></i>
-            Riba kwa Mwezi (%)
+            Riba (%)
           </label>
           <input
             type="number"
@@ -152,9 +152,7 @@
             step="0.1"
             required
           />
-          <span class="input-hint"
-            >Asilimia ya riba kwa mwezi. Riba huongezeka kila mwezi ukichelewa</span
-          >
+          <span class="input-hint">Asilimia ya riba kwa mwaka</span>
           <span v-if="errors.interest_rate" class="error-text">
             <i class="fas fa-exclamation-circle"></i>
             {{ errors.interest_rate }}
@@ -239,57 +237,12 @@
             :class="{ 'is-invalid': errors.start_date }"
             required
           />
-          <!-- :min="today" -->
           <span v-if="errors.start_date" class="error-text">
             <i class="fas fa-exclamation-circle"></i>
             {{ errors.start_date }}
           </span>
         </div>
-
-        <!-- Grace Period (Days) -->
-        <div class="form-group">
-          <label for="grace_period">
-            <i class="fas fa-hourglass-half"></i>
-            Siku za Mapumziko (Grace Period)
-          </label>
-          <input
-            type="number"
-            id="grace_period"
-            v-model.number="form.grace_period"
-            @input="calculateLoan"
-            class="form-control"
-            placeholder="0"
-            min="0"
-            max="30"
-          />
-          <span class="input-hint"
-            >Siku za mapumziko kabla ya riba ya kuchelewa kuanza (chaguo lako)</span
-          >
-        </div>
-
-        <!-- Penalty Rate (if different from interest rate) -->
-        <div class="form-group">
-          <label for="penalty_rate">
-            <i class="fas fa-exclamation-triangle"></i>
-            Riba ya Kuchelewa (% kwa mwezi)
-          </label>
-          <input
-            type="number"
-            id="penalty_rate"
-            v-model.number="form.penalty_rate"
-            @input="calculateLoan"
-            class="form-control"
-            :placeholder="form.interest_rate || '10'"
-            min="0"
-            max="100"
-            step="0.1"
-          />
-          <span class="input-hint"
-            >Riba inayoongezeka kila mwezi ukichelewa. Ikiachwa wazi, itakuwa sawa na riba ya
-            kawaida</span
-          >
-        </div>
-
+        <!-- :min="today" -->
         <!-- Purpose -->
         <div class="form-group full-width">
           <label for="purpose">
@@ -320,7 +273,7 @@
             <span class="summary-value">{{ formatCurrency(form.amount) }}</span>
           </div>
           <div class="summary-item">
-            <span class="summary-label">Riba ({{ form.interest_rate }}% kwa mwezi):</span>
+            <span class="summary-label">Riba ({{ form.interest_rate }}%):</span>
             <span class="summary-value">{{ formatCurrency(loanSummary.interest) }}</span>
           </div>
           <div class="summary-item total">
@@ -338,24 +291,6 @@
           <div class="summary-item">
             <span class="summary-label">Tarehe ya Kukamilisha:</span>
             <span class="summary-value">{{ formatDate(loanSummary.end_date) }}</span>
-          </div>
-        </div>
-
-        <!-- Penalty Information -->
-        <div class="penalty-info">
-          <h4>Riba ya Kuchelewa:</h4>
-          <p>
-            <i class="fas fa-info-circle"></i>
-            Ukishindwa kulipa ndani ya muda uliopangwa, riba ya
-            <strong>{{ getPenaltyRate }}%</strong> itaongezeka kwa kila mwezi wa kuchelewa. Siku za
-            mapumziko: <strong>{{ form.grace_period || 0 }}</strong> siku.
-          </p>
-          <div class="penalty-example">
-            <strong>Mfano:</strong> Ukichelewa miezi 3, jumla ya riba itakuwa:
-            <span class="example-calculation">
-              {{ formatCurrency(form.amount) }} × {{ getPenaltyRate }}% × miezi 3 ya kuchelewa =
-              {{ formatCurrency(calculatePenaltyExample(3)) }}
-            </span>
           </div>
         </div>
       </div>
@@ -631,20 +566,14 @@
 
           <h4>2. Riba na Malipo</h4>
           <p>
-            Riba ya {{ form.interest_rate || 'X' }}% kwa mwezi itahesabiwa kwa kiasi cha mkopo.
-            Malipo yatafanywa kwa mujibu wa muda uliochaguliwa (kila siku, wiki, au mwezi).
+            Riba ya {{ form.interest_rate || 'X' }}% itahesabiwa kwa kiasi cha mkopo. Malipo
+            yatafanywa kwa mujibu wa muda uliochaguliwa (kila siku, wiki, au mwezi).
           </p>
 
-          <h4>3. Riba ya Kuchelewa</h4>
+          <h4>3. Adhabu ya Kuchelewa</h4>
           <p>
-            Endapo mkopaji atachelewa kulipa baada ya muda wa malipo na siku za mapumziko (grace
-            period) kuisha, riba ya kuchelewa ya <strong>{{ getPenaltyRate }}%</strong> kwa mwezi
-            itaongezwa kwenye kiasi kilichobaki. Riba hii itahesabiwa kwa kila mwezi wa kuchelewa.
-          </p>
-          <p class="example">
-            <strong>Mfano:</strong> Kama mkopo ni TZS 1,000,000 na riba ya kuchelewa ni 10% kwa
-            mwezi, ukichelewa mwezi 1 utatozwa TZS 100,000 zaidi, ukichelewa miezi 2 utatozwa TZS
-            200,000 zaidi, na kadhalika.
+            Endapo mkopaji atachelewa kulipa, adhabu ya {{ defaultPenalty }}% ya kiasi cha malipo
+            itatozwa kwa kila siku ya kuchelewa.
           </p>
 
           <h4>4. Dhamana</h4>
@@ -686,8 +615,9 @@ const route = useRoute()
 const router = useRouter()
 
 // API base URL
-// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+
+// const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // Props
 const props = defineProps({
@@ -717,6 +647,7 @@ const guarantorSearch = ref('')
 const guarantorResults = ref([])
 const guarantorLoading = ref(false)
 const guarantorNoResults = ref(false)
+const defaultPenalty = ref(5)
 
 // Toast
 const showToast = ref(false)
@@ -727,11 +658,9 @@ const toastType = ref('success')
 const form = reactive({
   customer_id: null,
   amount: '',
-  interest_rate: null,
-  penalty_rate: null, // Riba ya kuchelewa (ikiachwa wazi, itakuwa sawa na interest_rate)
-  grace_period: 0, // Siku za mapumziko kabla ya riba ya kuchelewa kuanza
+  interest_rate: 10,
   duration_months: '',
-  payment_frequency: null,
+  payment_frequency: 'monthly',
   payment_days: null,
   start_date: '',
   purpose: '',
@@ -756,13 +685,6 @@ const newGuarantor = reactive({
   relationship: '',
 })
 
-// Computed property for penalty rate
-const getPenaltyRate = computed(() => {
-  return form.penalty_rate !== null && form.penalty_rate !== ''
-    ? form.penalty_rate
-    : form.interest_rate || 10
-})
-
 // Loan calculation
 const loanCalculated = computed(() => {
   return form.amount && form.interest_rate && form.duration_months && form.start_date
@@ -775,8 +697,7 @@ const loanSummary = computed(() => {
   const rate = parseFloat(form.interest_rate) || 0
   const months = parseInt(form.duration_months) || 0
 
-  // Riba inahesabiwa kwa mwezi
-  const interest = amount * (rate / 100) * months
+  const interest = amount * (rate / 100)
   const totalAmount = amount + interest
 
   let installments = months
@@ -823,6 +744,7 @@ const toastIcon = computed(() => {
 })
 
 // Methods
+// Alternative search implementation
 const searchCustomers = debounce(async () => {
   if (!customerSearch.value || customerSearch.value.length < 2) {
     searchResults.value = []
@@ -833,6 +755,7 @@ const searchCustomers = debounce(async () => {
   customersLoading.value = true
 
   try {
+    // Try different endpoint patterns
     const response = await axios.get(`${API_URL}/customers`, {
       params: {
         search: customerSearch.value,
@@ -840,13 +763,19 @@ const searchCustomers = debounce(async () => {
       },
     })
 
+    console.log('Search response:', response.data)
+
+    // Handle different response structures
     let customers = []
 
     if (response.data.data?.data) {
+      // Paginated response: { data: { data: [...] } }
       customers = response.data.data.data
     } else if (response.data.data) {
+      // Direct array: { data: [...] }
       customers = response.data.data
     } else if (Array.isArray(response.data)) {
+      // Direct array: [...]
       customers = response.data
     }
 
@@ -863,6 +792,8 @@ const searchCustomers = debounce(async () => {
     noResults.value = searchResults.value.length === 0
   } catch (error) {
     console.error('Error searching customers:', error)
+
+    // For development, use mock data
     if (import.meta.env.DEV) {
       searchResults.value = []
       noResults.value = false
@@ -892,12 +823,6 @@ const calculateLoan = () => {
   // Trigger computation
 }
 
-const calculatePenaltyExample = (months) => {
-  const amount = parseFloat(form.amount) || 0
-  const penaltyRate = parseFloat(getPenaltyRate.value) || 0
-  return amount * (penaltyRate / 100) * months
-}
-
 const generatePaymentDays = () => {
   const startDate = new Date(form.start_date)
   const day = startDate.getDate()
@@ -907,7 +832,7 @@ const generatePaymentDays = () => {
       form.payment_days = JSON.stringify({ days: [day] })
       break
     case 'weekly':
-      const weekday = startDate.getDay()
+      const weekday = startDate.getDay() // 0 = Sunday, 1 = Monday, etc.
       form.payment_days = JSON.stringify({ days: [weekday] })
       break
     case 'daily':
@@ -936,6 +861,7 @@ const addCollateral = () => {
     description: newCollateral.description,
   })
 
+  // Reset form
   newCollateral.name = ''
   newCollateral.type = 'land'
   newCollateral.value = ''
@@ -1010,6 +936,7 @@ const addGuarantor = () => {
     photo: null,
   })
 
+  // Reset form
   newGuarantor.name = ''
   newGuarantor.phone = ''
   newGuarantor.relationship = ''
@@ -1032,11 +959,10 @@ const loadLoanData = async () => {
       if (response.data.success) {
         const loan = response.data.data
 
+        // Populate form
         form.customer_id = loan.customer_id
         form.amount = loan.amount
         form.interest_rate = loan.interest_rate
-        form.penalty_rate = loan.penalty_rate
-        form.grace_period = loan.grace_period || 0
         form.duration_months = loan.duration_months
         form.payment_frequency = loan.payment_frequency
         form.payment_days = loan.payment_days
@@ -1044,6 +970,7 @@ const loadLoanData = async () => {
         form.purpose = loan.purpose || ''
         form.notes = loan.notes || ''
 
+        // Load customer data
         if (loan.customer) {
           selectedCustomer.value = {
             id: loan.customer.id,
@@ -1056,6 +983,7 @@ const loadLoanData = async () => {
           }
         }
 
+        // Load collaterals if any
         if (loan.collateral) {
           form.collaterals.push({
             id: loan.collateral.id,
@@ -1105,19 +1033,16 @@ const submitForm = async () => {
       return
     }
 
+    // Generate payment days if not already set
     if (!form.payment_days) {
       generatePaymentDays()
     }
 
+    // Prepare loan data for API
     const loanData = {
       customer_id: form.customer_id,
       amount: parseFloat(form.amount),
       interest_rate: parseFloat(form.interest_rate),
-      penalty_rate:
-        form.penalty_rate !== null && form.penalty_rate !== ''
-          ? parseFloat(form.penalty_rate)
-          : parseFloat(form.interest_rate),
-      grace_period: parseInt(form.grace_period) || 0,
       duration_months: parseInt(form.duration_months),
       payment_frequency: form.payment_frequency,
       payment_days: form.payment_days,
@@ -1129,16 +1054,20 @@ const submitForm = async () => {
     let response
 
     if (props.isEdit && props.loanId) {
+      // Update existing loan
       response = await axios.put(`${API_URL}/loans/${props.loanId}`, loanData)
     } else {
+      // Create new loan
       response = await axios.post(`${API_URL}/loans`, loanData)
     }
 
     if (response.data.success) {
+      // Handle collaterals if any
       if (form.collaterals.length > 0) {
         await saveCollaterals(response.data.data.id)
       }
 
+      // Handle guarantors if any (you'll need to create this endpoint)
       if (form.guarantors.length > 0) {
         await saveGuarantors(response.data.data.id)
       }
@@ -1173,6 +1102,7 @@ const submitForm = async () => {
   }
 }
 
+// In your saveCollaterals function
 const saveCollaterals = async (loanId) => {
   for (const collateral of form.collaterals) {
     try {
@@ -1188,6 +1118,8 @@ const saveCollaterals = async (loanId) => {
         image_path: 'none',
       }
 
+      console.log('Saving collateral:', collateralData) // Debug log
+
       const response = await axios.post(`${API_URL}/collaterals`, collateralData)
 
       if (response.data.success) {
@@ -1195,6 +1127,9 @@ const saveCollaterals = async (loanId) => {
       }
     } catch (error) {
       console.error('Error saving collateral:', error)
+      console.error('Error response:', error.response?.data)
+
+      // Show detailed error message
       let errorMessage = 'Hitilafu katika kuhifadhi dhamana'
 
       if (error.response?.data?.message) {
@@ -1202,8 +1137,13 @@ const saveCollaterals = async (loanId) => {
       }
 
       if (error.response?.data?.errors) {
+        // Show validation errors
         const errors = Object.values(error.response.data.errors).flat()
         errorMessage = errors.join(', ')
+      }
+
+      if (error.response?.data?.debug) {
+        console.log('Debug info:', error.response.data.debug)
       }
 
       showToastMessage(errorMessage, 'error')
@@ -1211,6 +1151,7 @@ const saveCollaterals = async (loanId) => {
   }
 }
 
+// Save guarantors
 const saveGuarantors = async (loanId) => {
   if (form.guarantors.length === 0) return
 
@@ -1233,6 +1174,7 @@ const saveGuarantors = async (loanId) => {
   try {
     const responses = await Promise.all(savePromises)
 
+    // Check if all were successful
     const allSuccessful = responses.every((res) => res.data.success)
 
     if (allSuccessful) {
@@ -2280,63 +2222,5 @@ onMounted(async () => {
   border-top-color: #3498db;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-}
-
-.penalty-info {
-  margin-top: 20px;
-  padding: 15px;
-  background: #fff3e0;
-  border-radius: 8px;
-  border-left: 4px solid #f39c12;
-}
-
-.penalty-info h4 {
-  color: #e67e22;
-  margin: 0 0 10px;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.penalty-info p {
-  margin: 0 0 10px;
-  color: #666;
-  line-height: 1.5;
-}
-
-.penalty-info i {
-  color: #f39c12;
-}
-
-.penalty-example {
-  background: white;
-  padding: 10px 15px;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  color: #333;
-}
-
-.example-calculation {
-  display: block;
-  margin-top: 5px;
-  color: #27ae60;
-  font-weight: 500;
-}
-
-.terms-body .example {
-  background: #f0f9ff;
-  padding: 10px;
-  border-radius: 6px;
-  margin-top: 5px;
-  font-size: 0.9rem;
-  border-left: 3px solid #3498db;
-}
-
-/* Responsive updates */
-@media (max-width: 768px) {
-  .penalty-example {
-    font-size: 0.85rem;
-  }
 }
 </style>

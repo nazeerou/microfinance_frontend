@@ -892,6 +892,66 @@
       </div>
     </div>
 
+    <!-- Payment Schedule Modal -->
+    <div v-if="showScheduleModal" class="modal-overlay" @click="closeScheduleModal">
+      <div class="modal-content large-modal" @click.stop>
+        <div class="modal-header">
+          <div class="modal-header-left">
+            <i class="fas fa-calendar-alt"></i>
+            <h3>Ratiba ya Malipo - Mkopo #{{ selectedLoanForSchedule?.loan_number }}</h3>
+          </div>
+          <button class="close-btn" @click="closeScheduleModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div v-if="scheduleLoading" class="loading-state">
+            <div class="spinner"></div>
+            <span>Inapakia ratiba...</span>
+          </div>
+
+          <div v-else-if="paymentSchedule.length === 0" class="empty-state">
+            <i class="fas fa-calendar-times"></i>
+            <p>Hakuna ratiba ya malipo kwa mkopo huu</p>
+          </div>
+
+          <div v-else class="table-responsive">
+            <table class="schedule-table">
+              <thead>
+                <tr>
+                  <th>Na.</th>
+                  <th>Tarehe ya Malipo</th>
+                  <th>Kiasi</th>
+                  <th>Kilicholipwa</th>
+                  <th>Salio</th>
+                  <th>Hali</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(item, index) in paymentSchedule" :key="index">
+                  <td>{{ index + 1 }}</td>
+                  <td>{{ formatDate(item.due_date) }}</td>
+                  <td>{{ formatCurrency(item.amount) }}</td>
+                  <td>{{ formatCurrency(item.paid_amount || 0) }}</td>
+                  <td>{{ formatCurrency(item.balance || item.amount) }}</td>
+                  <td>
+                    <span class="status-badge small" :class="item.status">
+                      {{ getPaymentStatus(item.status) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeScheduleModal" class="btn-secondary">Funga</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div v-if="showToast" class="toast-notification" :class="toastType">
       <i :class="toastIcon"></i>
@@ -908,7 +968,6 @@ import axios from 'axios'
 
 const router = useRouter()
 // const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-
 const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // State
@@ -929,6 +988,12 @@ const showDeleteModal = ref(false)
 const approvalNotes = ref('')
 const rejectionReason = ref('')
 const disbursementNotes = ref('')
+
+// Schedule Modal states
+const showScheduleModal = ref(false)
+const scheduleLoading = ref(false)
+const paymentSchedule = ref([])
+const selectedLoanForSchedule = ref(null)
 
 // Toast
 const showToast = ref(false)
@@ -1020,11 +1085,69 @@ const toastIcon = computed(() => {
   return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
 })
 
-// Methods
-const toggleLoanDetails = (loanId) => {
-  expandedLoan.value = expandedLoan.value === loanId ? null : loanId
+// Helper Functions
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('sw-TZ', {
+    style: 'currency',
+    currency: 'TZS',
+    minimumFractionDigits: 0,
+  }).format(value || 0)
 }
 
+const formatDate = (date) => {
+  if (!date) return ''
+  return new Date(date).toLocaleDateString('sw-TZ', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+const getStatusText = (status) => {
+  const statusMap = {
+    pending: 'Inasubiri',
+    approved: 'Imeidhinishwa',
+    active: 'Inaendelea',
+    paid: 'Imelipwa',
+    defaulted: 'Imechelewa',
+    rejected: 'Imekataliwa',
+  }
+  return statusMap[status] || status
+}
+
+const getPaymentStatus = (status) => {
+  const statusMap = {
+    paid: 'Imelipwa',
+    pending: 'Inasubiri',
+    overdue: 'Imechelewa',
+  }
+  return statusMap[status] || status
+}
+
+// Permission checks
+const canEdit = (loan) => ['pending', 'rejected'].includes(loan.status)
+const canApprove = (loan) => loan.status === 'pending'
+const canDisburse = (loan) => loan.status === 'approved'
+const canRecordPayment = (loan) => ['active', 'defaulted'].includes(loan.status) && loan.balance > 0
+const canReject = (loan) => ['pending', 'approved'].includes(loan.status)
+const canDelete = (loan) => ['pending', 'rejected'].includes(loan.status)
+
+// Action Menu
+const toggleActionMenu = (loanId) => {
+  activeActionMenu.value = activeActionMenu.value === loanId ? null : loanId
+}
+
+const closeActionMenu = () => {
+  activeActionMenu.value = null
+}
+
+const handleClickOutside = (event) => {
+  if (!event.target.closest('.action-dropdown')) {
+    closeActionMenu()
+  }
+}
+
+// Data Loading
 const loadLoans = async () => {
   loading.value = true
   error.value = null
@@ -1070,7 +1193,7 @@ const loadLoans = async () => {
         interest_rate: parseFloat(item.interest_rate),
         total_amount: parseFloat(item.total_amount),
         balance: parseFloat(item.balance),
-        monthly_payment: parseFloat(item.monthly_payment),
+        monthly_payment: parseFloat(item.monthly_payment || item.installment_amount),
         duration_months: item.duration_months,
         payment_frequency: item.payment_frequency,
         start_date: item.start_date,
@@ -1092,7 +1215,6 @@ const loadLoans = async () => {
       pagination.from = responseData.from || 0
       pagination.to = responseData.to || 0
 
-      // Load statistics after loans are loaded
       await loadStatistics()
     }
   } catch (err) {
@@ -1131,6 +1253,36 @@ const loadStatistics = async () => {
   }
 }
 
+// Schedule Functions
+const viewSchedule = async (loan) => {
+  selectedLoanForSchedule.value = loan
+  showScheduleModal.value = true
+  scheduleLoading.value = true
+  closeActionMenu()
+
+  try {
+    const response = await axios.get(`${API_URL}/loans/${loan.id}/payment-schedule`)
+    if (response.data.success) {
+      paymentSchedule.value = response.data.data || []
+    } else {
+      paymentSchedule.value = []
+    }
+  } catch (err) {
+    console.error('Error loading payment schedule:', err)
+    showToastMessage('Hitilafu katika kupakia ratiba ya malipo', 'error')
+    paymentSchedule.value = []
+  } finally {
+    scheduleLoading.value = false
+  }
+}
+
+const closeScheduleModal = () => {
+  showScheduleModal.value = false
+  selectedLoanForSchedule.value = null
+  paymentSchedule.value = []
+}
+
+// Filter Functions
 const debouncedSearch = debounce(() => {
   filters.page = 1
   loadLoans()
@@ -1174,58 +1326,6 @@ const changePage = (page) => {
   }
 }
 
-const toggleActionMenu = (loanId) => {
-  activeActionMenu.value = activeActionMenu.value === loanId ? null : loanId
-}
-
-const closeActionMenu = () => {
-  activeActionMenu.value = null
-}
-
-const handleClickOutside = (event) => {
-  if (!event.target.closest('.action-dropdown')) {
-    closeActionMenu()
-  }
-}
-
-// Helper functions
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('sw-TZ', {
-    style: 'currency',
-    currency: 'TZS',
-    minimumFractionDigits: 0,
-  }).format(value || 0)
-}
-
-const formatDate = (date) => {
-  if (!date) return ''
-  return new Date(date).toLocaleDateString('sw-TZ', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-const getStatusText = (status) => {
-  const statusMap = {
-    pending: 'Inasubiri',
-    approved: 'Imeidhinishwa',
-    active: 'Inaendelea',
-    paid: 'Imelipwa',
-    defaulted: 'Imechelewa',
-    rejected: 'Imekataliwa',
-  }
-  return statusMap[status] || status
-}
-
-// Permission checks
-const canEdit = (loan) => ['pending', 'rejected'].includes(loan.status)
-const canApprove = (loan) => loan.status === 'pending'
-const canDisburse = (loan) => loan.status === 'approved'
-const canRecordPayment = (loan) => ['active', 'defaulted'].includes(loan.status) && loan.balance > 0
-const canReject = (loan) => ['pending', 'approved'].includes(loan.status)
-const canDelete = (loan) => ['pending', 'rejected'].includes(loan.status)
-
 // Navigation
 const viewLoan = (loan) => {
   router.push(`/loans/${loan.id}`)
@@ -1242,12 +1342,11 @@ const recordPayment = (loan) => {
   closeActionMenu()
 }
 
-const viewSchedule = (loan) => {
-  router.push(`/loans/${loan.id}/schedule`)
-  closeActionMenu()
+const toggleLoanDetails = (loanId) => {
+  expandedLoan.value = expandedLoan.value === loanId ? null : loanId
 }
 
-// Approve modal
+// Approve Modal
 const approveLoan = (loan) => {
   selectedLoan.value = loan
   approvalNotes.value = ''
@@ -1284,7 +1383,7 @@ const confirmApprove = async () => {
   }
 }
 
-// Reject modal
+// Reject Modal
 const rejectLoan = (loan) => {
   selectedLoan.value = loan
   rejectionReason.value = ''
@@ -1321,7 +1420,7 @@ const confirmReject = async () => {
   }
 }
 
-// Disburse modal
+// Disburse Modal
 const disburseLoan = (loan) => {
   selectedLoan.value = loan
   disbursementNotes.value = ''
@@ -1359,7 +1458,7 @@ const confirmDisburse = async () => {
   }
 }
 
-// Delete modal
+// Delete Modal
 const deleteLoan = (loan) => {
   selectedLoan.value = loan
   showDeleteModal.value = true
@@ -2799,5 +2898,63 @@ onUnmounted(() => {
   .btn-icon {
     width: 100%;
   }
+}
+
+/* Schedule Modal */
+.modal-content.large-modal {
+  max-width: 800px;
+  width: 90%;
+}
+
+.modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-header-left i {
+  font-size: 1.5rem;
+  color: #3498db;
+}
+
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.schedule-table th {
+  text-align: left;
+  padding: 12px 10px;
+  background: #f8fafc;
+  color: #1a2639;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 2px solid #eef2f6;
+}
+
+.schedule-table td {
+  padding: 10px;
+  border-bottom: 1px solid #eef2f6;
+  color: #666;
+}
+
+.status-badge.small {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.status-badge.paid {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.overdue {
+  background: #f8d7da;
+  color: #721c24;
 }
 </style>

@@ -11,6 +11,8 @@ import axios from 'axios'
 //     error: null,
 //   }),
 
+// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+
 const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 export const useBranchStore = defineStore('branch', {
