@@ -754,14 +754,21 @@ import axios from 'axios'
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || null)
   const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
-
+  const loading = ref(false)
   const warningVisible = ref(false)
+
+  let inactivityTimer = null
+  let warningTimer = null
+  let refreshInterval = null
 
   const INACTIVITY_LIMIT = 30 * 60 * 1000
   const WARNING_TIME = 25 * 60 * 1000
 
-  let inactivityTimer = null
-  let warningTimer = null
+  /*
+  |--------------------------------------------------------------------------
+  | AXIOS
+  |--------------------------------------------------------------------------
+  */
 
   const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
@@ -788,18 +795,26 @@ export const useAuthStore = defineStore('auth', () => {
   */
 
   const login = async (credentials) => {
-    const { data } = await api.post('/login', credentials)
+    loading.value = true
 
-    const tokenData = data.data?.token || data.token
-    const userData = data.data?.user || data.user
+    try {
+      const { data } = await api.post('/login', credentials)
 
-    token.value = tokenData
-    user.value = userData
+      const tokenData = data.data?.token || data.token
+      const userData = data.data?.user || data.user
 
-    localStorage.setItem('token', tokenData)
-    localStorage.setItem('user', JSON.stringify(userData))
+      token.value = tokenData
+      user.value = userData
 
-    startSessionManager()
+      localStorage.setItem('token', tokenData)
+      localStorage.setItem('user', JSON.stringify(userData))
+
+      startSessionManager()
+
+      return data
+    } finally {
+      loading.value = false
+    }
   }
 
   /*
@@ -822,6 +837,44 @@ export const useAuthStore = defineStore('auth', () => {
 
   /*
   |--------------------------------------------------------------------------
+  | INIT AUTH (APP START)
+  |--------------------------------------------------------------------------
+  */
+
+  const initAuth = () => {
+    const storedToken = localStorage.getItem('token')
+    const storedUser = localStorage.getItem('user')
+
+    if (storedToken && storedUser) {
+      token.value = storedToken
+      user.value = JSON.parse(storedUser)
+
+      startSessionManager()
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | CHECK AUTH (ROUTER)
+  |--------------------------------------------------------------------------
+  */
+
+  const checkAuth = () => {
+    const storedToken = localStorage.getItem('token')
+    const storedUser = localStorage.getItem('user')
+
+    if (!storedToken || !storedUser) {
+      return false
+    }
+
+    token.value = storedToken
+    user.value = JSON.parse(storedUser)
+
+    return true
+  }
+
+  /*
+  |--------------------------------------------------------------------------
   | TOKEN REFRESH
   |--------------------------------------------------------------------------
   */
@@ -834,7 +887,7 @@ export const useAuthStore = defineStore('auth', () => {
         token.value = data.token
         localStorage.setItem('token', data.token)
       }
-    } catch (e) {
+    } catch (error) {
       console.log('Token refresh failed')
       logout()
     }
@@ -842,7 +895,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   /*
   |--------------------------------------------------------------------------
-  | SESSION TIMERS
+  | SESSION TIMER
   |--------------------------------------------------------------------------
   */
 
@@ -859,6 +912,12 @@ export const useAuthStore = defineStore('auth', () => {
     }, INACTIVITY_LIMIT)
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | ACTIVITY TRACKING
+  |--------------------------------------------------------------------------
+  */
+
   const trackActivity = () => {
     warningVisible.value = false
     resetTimers()
@@ -872,13 +931,13 @@ export const useAuthStore = defineStore('auth', () => {
     window.addEventListener('click', trackActivity)
     window.addEventListener('scroll', trackActivity)
 
-    // refresh token every 10 minutes
-    setInterval(refreshToken, 10 * 60 * 1000)
+    refreshInterval = setInterval(refreshToken, 10 * 60 * 1000)
   }
 
   const stopSessionManager = () => {
     clearTimeout(inactivityTimer)
     clearTimeout(warningTimer)
+    clearInterval(refreshInterval)
 
     window.removeEventListener('mousemove', trackActivity)
     window.removeEventListener('keydown', trackActivity)
@@ -888,36 +947,38 @@ export const useAuthStore = defineStore('auth', () => {
 
   /*
   |--------------------------------------------------------------------------
-  | INIT AUTH
+  | COMPUTED
   |--------------------------------------------------------------------------
   */
 
-  const initAuth = () => {
-    const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
+  const isAuthenticated = computed(() => {
+    return !!token.value && !!user.value
+  })
 
-    if (storedToken && storedUser) {
-      token.value = storedToken
-      user.value = JSON.parse(storedUser)
+  const userName = computed(() => user.value?.name || 'Guest')
 
-      startSessionManager()
-    }
-  }
-
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  /*
+  |--------------------------------------------------------------------------
+  | RETURN
+  |--------------------------------------------------------------------------
+  */
 
   return {
     user,
     token,
+    loading,
 
     login,
     logout,
     initAuth,
-
-    warningVisible,
+    checkAuth,
 
     trackActivity,
+    warningVisible,
 
     isAuthenticated,
+    userName,
+
+    api,
   }
 })
