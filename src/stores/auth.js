@@ -17,7 +17,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Configure axios
   const api = axios.create({
-    // baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1',
     baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
     headers: {
       'Content-Type': 'application/json',
@@ -27,8 +26,6 @@ export const useAuthStore = defineStore('auth', () => {
     withCredentials: true,
     timeout: 30000,
   })
-
-  ////online
 
   // Set authorization header if token exists
   if (token.value) {
@@ -50,7 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
     (error) => Promise.reject(error),
   )
 
-  // Response interceptor with token refresh
+  // ✅ SAHIHISHA: Response interceptor
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -61,18 +58,35 @@ export const useAuthStore = defineStore('auth', () => {
         return Promise.reject(error)
       }
 
+      // ✅ 1. Usifanye refresh kama huna token
+      const currentToken = token.value || localStorage.getItem('token')
+      if (!currentToken) {
+        return Promise.reject(error)
+      }
+
+      // ✅ 2. Weka kikomo cha majaribio (prevent infinite loop)
+      if (originalRequest._retryCount >= 3) {
+        await handleLogout('max_retry_exceeded')
+        return Promise.reject(error)
+      }
+
       // If error is 401 and we haven't tried to refresh yet
-      if (error.response?.status === 401 && !originalRequest?._retry) {
+      if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true
+        originalRequest._retryCount = (originalRequest._retryCount || 0) + 1
 
         try {
           // Attempt to refresh token
           const newToken = await refreshToken()
-          originalRequest.headers['Authorization'] = `Bearer ${newToken}`
-          return api(originalRequest)
+          if (newToken) {
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`
+            return api(originalRequest)
+          } else {
+            throw new Error('No token returned')
+          }
         } catch (refreshError) {
-          // Refresh failed - logout
-          // await handleLogout('token_refresh_failed')
+          console.error('Refresh failed:', refreshError)
+          // ✅ 3. Usifanye logout automatically, achana na request hii
           return Promise.reject(refreshError)
         }
       }
@@ -143,6 +157,41 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // ✅ SAHIHISHA: Refresh token method
+  const refreshToken = async () => {
+    const currentToken = token.value || localStorage.getItem('token')
+    if (!currentToken) {
+      throw new Error('No token to refresh')
+    }
+
+    try {
+      const response = await api.post('/refresh') // POST badala ya GET
+      const responseData = response.data
+
+      let newToken = null
+
+      if (responseData.data?.token) {
+        newToken = responseData.data.token
+      } else if (responseData.token) {
+        newToken = responseData.token
+      } else {
+        throw new Error('Invalid refresh response format')
+      }
+
+      token.value = newToken
+      localStorage.setItem('token', newToken)
+      localStorage.setItem('login_time', Date.now().toString())
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+      resetInactivityTimer()
+
+      return newToken
+    } catch (error) {
+      console.error('Refresh token error:', error)
+      // ✅ Usifanye logout automatically, just throw error
+      throw error
+    }
+  }
+
   // Login method
   const login = async (credentials) => {
     loading.value = true
@@ -176,6 +225,14 @@ export const useAuthStore = defineStore('auth', () => {
       // Set default header
       api.defaults.headers.common['Authorization'] = `Bearer ${tokenData}`
 
+      // ✅ 4. Jaribu kupata user data mara moja
+      try {
+        await fetchUser()
+      } catch (userError) {
+        console.warn('Could not fetch user immediately:', userError)
+        // Usifanye logout, endelea na token tuliyonayo
+      }
+
       // Setup activity tracking
       setupActivityTracking()
 
@@ -186,29 +243,6 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       loading.value = false
     }
-  }
-
-  // Refresh token
-  const refreshToken = async () => {
-    // const currentToken = token.value || localStorage.getItem('token')
-    // if (!currentToken) {
-    //   throw new Error('No token to refresh')
-    // }
-    // try {
-    //   const response = await api.get('/refresh')
-    //   const { data } = response.data
-    //   token.value = data.token
-    //   localStorage.setItem('token', data.token)
-    //   api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
-    //   // Update login time on refresh
-    //   localStorage.setItem('login_time', Date.now().toString())
-    //   // Reset activity on token refresh
-    //   resetInactivityTimer()
-    //   return data.token
-    // } catch (error) {
-    //   console.error('Refresh token error:', error)
-    //   throw error
-    // }
   }
 
   // Logout method
@@ -256,7 +290,8 @@ export const useAuthStore = defineStore('auth', () => {
       return userData
     } catch (error) {
       if (error.response?.status === 401) {
-        await handleLogout('token_invalid')
+        // ✅ 5. Usifanye logout automatically, just throw
+        console.warn('User fetch returned 401')
       }
       throw error
     }
@@ -313,6 +348,7 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     } catch (error) {
       console.log('Token validation failed:', error.message)
+      // ✅ 6. Usifanye logout automatically, just return false
       return false
     }
   }
