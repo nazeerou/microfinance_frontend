@@ -419,6 +419,8 @@
       </div>
     </div>
   </div>
+
+  <SessionWarning />
 </template>
 
 <script setup>
@@ -430,6 +432,7 @@ import Footer from './AppFooter.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useLoanStore } from '@/stores/loan'
 import { useBranchStore } from '@/stores/branch'
+import SessionWarning from '@/components/SessionWarning.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
