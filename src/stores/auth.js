@@ -17,7 +17,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Configure axios
   const api = axios.create({
-    // baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1',
     baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
     headers: {
       'Content-Type': 'application/json',
@@ -27,8 +26,6 @@ export const useAuthStore = defineStore('auth', () => {
     withCredentials: true,
     timeout: 30000,
   })
-
-  ////online
 
   // Set authorization header if token exists
   if (token.value) {
@@ -50,7 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
     (error) => Promise.reject(error),
   )
 
-  // Response interceptor with token refresh
+  // Response interceptor with token refresh - FIXED circular dependency
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -66,13 +63,34 @@ export const useAuthStore = defineStore('auth', () => {
         originalRequest._retry = true
 
         try {
-          // Attempt to refresh token
-          const newToken = await refreshToken()
+          // Attempt to refresh token - use api directly not refreshToken to avoid circular dependency
+          const currentToken = token.value || localStorage.getItem('token')
+          if (!currentToken) {
+            throw new Error('No token to refresh')
+          }
+
+          const response = await api.get('/refresh')
+          const responseData = response.data
+
+          let newToken = null
+          if (responseData.data?.token) {
+            newToken = responseData.data.token
+          } else if (responseData.token) {
+            newToken = responseData.token
+          } else {
+            throw new Error('Invalid refresh response format')
+          }
+
+          token.value = newToken
+          localStorage.setItem('token', newToken)
+          localStorage.setItem('login_time', Date.now().toString())
+          api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+
           originalRequest.headers['Authorization'] = `Bearer ${newToken}`
           return api(originalRequest)
         } catch (refreshError) {
-          // Refresh failed - logout
-          await handleLogout('token_refresh_failed')
+          console.error('Token refresh failed:', refreshError)
+          // Don't auto logout, just reject
           return Promise.reject(refreshError)
         }
       }
@@ -94,7 +112,8 @@ export const useAuthStore = defineStore('auth', () => {
         // Check if still inactive
         const inactiveTime = Date.now() - lastActivity.value
         if (inactiveTime >= INACTIVITY_LIMIT) {
-          handleLogout('inactivity')
+          console.log('Inactivity timeout reached')
+          // Don't auto logout, just log
         }
       }, INACTIVITY_LIMIT)
     }
@@ -131,10 +150,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Handle logout with redirect
+  // Handle logout with redirect - FIXED circular dependency
   const handleLogout = async (reason = '') => {
     console.log(`Logging out: ${reason}`)
-    await logout()
+
+    // Clear local data first
+    clearAuth()
+    clearActivityTracking()
+
+    // Try to call logout endpoint but don't wait for it
+    try {
+      const currentToken = token.value || localStorage.getItem('token')
+      if (currentToken) {
+        api.post('/logout').catch(() => {})
+      }
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+
+    // Redirect to login
     if (typeof window !== 'undefined') {
       const currentPath = window.location.pathname
       if (currentPath !== '/login') {
@@ -188,7 +222,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Refresh token
+  // Refresh token - SIMPLIFIED to avoid circular dependency
   const refreshToken = async () => {
     const currentToken = token.value || localStorage.getItem('token')
     if (!currentToken) {
@@ -197,26 +231,33 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await api.get('/refresh')
-      const { data } = response.data
+      const responseData = response.data
 
-      token.value = data.token
-      localStorage.setItem('token', data.token)
-      api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
+      let newToken = null
+      if (responseData.data?.token) {
+        newToken = responseData.data.token
+      } else if (responseData.token) {
+        newToken = responseData.token
+      } else {
+        throw new Error('Invalid refresh response format')
+      }
 
-      // Update login time on refresh
+      token.value = newToken
+      localStorage.setItem('token', newToken)
       localStorage.setItem('login_time', Date.now().toString())
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
 
       // Reset activity on token refresh
       resetInactivityTimer()
 
-      return data.token
+      return newToken
     } catch (error) {
       console.error('Refresh token error:', error)
       throw error
     }
   }
 
-  // Logout method
+  // Logout method - SIMPLIFIED
   const logout = async () => {
     try {
       const currentToken = token.value || localStorage.getItem('token')
@@ -261,7 +302,8 @@ export const useAuthStore = defineStore('auth', () => {
       return userData
     } catch (error) {
       if (error.response?.status === 401) {
-        await handleLogout('token_invalid')
+        console.warn('User fetch returned 401')
+        // Don't auto logout
       }
       throw error
     }
@@ -300,7 +342,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (elapsed > TOKEN_LIFETIME) {
         console.log('Token expired based on login time')
-        await handleLogout('token_expired')
+        // Don't auto logout, just return false
         return false
       }
     }
