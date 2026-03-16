@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
 
     console.log('Attempting login with:', {
-      username: credentials.username,
+      username: credentials.email,
       password: credentials.password ? '[PROVIDED]' : '[MISSING]',
     })
 
