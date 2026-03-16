@@ -2,13 +2,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
-import { useRouter } from 'vue-router'
 
 export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = ref(false)
   const user = ref(null)
   const loading = ref(false)
   const error = ref(null)
+  const token = ref(null) // Added for compatibility
 
   // Configure axios
   const api = axios.create({
@@ -28,13 +28,18 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await api.post('/login', credentials)
 
-      // Check if login successful (status 200)
+      // Check if login successful
       if (response.status === 200) {
         isAuthenticated.value = true
 
-        // Store user data if needed (optional)
+        // Store user data if returned
         if (response.data.user) {
           user.value = response.data.user
+        }
+
+        // Store token if returned (optional)
+        if (response.data.token) {
+          token.value = response.data.token
         }
 
         return { success: true }
@@ -52,15 +57,47 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = () => {
     isAuthenticated.value = false
     user.value = null
-    // No localStorage to clear
+    token.value = null
+  }
+
+  // Add initAuth for compatibility (does nothing in simple mode)
+  const initAuth = async () => {
+    console.log('initAuth called - no persistence in simple mode')
+    return false // Not authenticated on page load
+  }
+
+  // Add checkAuth for compatibility
+  const checkAuth = () => {
+    console.log('checkAuth called')
+    return isAuthenticated.value
+  }
+
+  // Add fetchUser for compatibility
+  const fetchUser = async () => {
+    if (isAuthenticated.value && user.value) {
+      return user.value
+    }
+    return null
+  }
+
+  // Add refreshToken for compatibility (does nothing)
+  const refreshToken = async () => {
+    console.log('refreshToken called - not implemented in simple mode')
+    return null
   }
 
   return {
     user,
+    token,
     loading,
     error,
     isAuthenticated,
     login,
     logout,
+    initAuth, // Added for compatibility
+    checkAuth, // Added for compatibility
+    fetchUser, // Added for compatibility
+    refreshToken, // Added for compatibility
+    api, // Added for compatibility
   }
 })
