@@ -1,6 +1,12 @@
 <!-- App.vue -->
 <template>
-  <div id="app">
+  <div
+    id="app"
+    @mousemove="trackActivity"
+    @keydown="trackActivity"
+    @click="trackActivity"
+    @scroll="trackActivity"
+  >
     <router-view v-slot="{ Component }">
       <transition name="fade" mode="out-in">
         <component :is="Component" />
@@ -10,27 +16,19 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-// Only if you need to initialize something
-onMounted(async () => {
-  console.log('App mounted')
-})
+const authStore = useAuthStore()
 
-onUnmounted(() => {
-  // Cleanup if needed
+// This function now exists in your store
+const trackActivity = () => {
+  authStore.trackActivity()
+}
+
+onMounted(() => {
+  // Restore auth state from localStorage
+  authStore.initAuth()
+  console.log('App mounted, auth restored:', authStore.isAuthenticated)
 })
 </script>
-
-<style>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
