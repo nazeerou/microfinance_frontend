@@ -1,173 +1,222 @@
-// stores/auth.js
+// src/stores/auth.js
+
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
 
+/*
+|--------------------------------------------------------------------------
+| Axios Instance
+|--------------------------------------------------------------------------
+*/
+
+const baseURL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+
+const api = axios.create({
+  baseURL,
+  withCredentials: true,
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+  },
+})
+
+/*
+|--------------------------------------------------------------------------
+| Auth Store
+|--------------------------------------------------------------------------
+*/
+
 export const useAuthStore = defineStore('auth', () => {
-  const isAuthenticated = ref(false)
-  const user = ref(null)
+  /*
+  |--------------------------------------------------------------------------
+  | STATE
+  |--------------------------------------------------------------------------
+  */
+
+  const user = ref(JSON.parse(localStorage.getItem('auth_user')) || null)
+  const permissions = ref(JSON.parse(localStorage.getItem('auth_permissions')) || [])
   const loading = ref(false)
   const error = ref(null)
-  const permissions = ref([])
 
-  // Base URL
-  const baseURL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+  /*
+  |--------------------------------------------------------------------------
+  | GETTERS
+  |--------------------------------------------------------------------------
+  */
 
-  // Configure axios for Laravel API
-  const api = axios.create({
-    baseURL: baseURL,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-    withCredentials: true,
-    timeout: 30000,
-  })
+  const isAuthenticated = computed(() => !!user.value)
 
-  // Login method - only allows authenticated users
+  const userName = computed(() => user.value?.name || user.value?.email || 'Guest')
+
+  const userRole = computed(() => user.value?.role || user.value?.roles?.[0]?.name || null)
+
+  /*
+  |--------------------------------------------------------------------------
+  | ACTIONS
+  |--------------------------------------------------------------------------
+  */
+
+  /**
+   * Login user
+   */
   const login = async (credentials) => {
     loading.value = true
     error.value = null
 
     try {
-      console.log('Attempting login with:', credentials.email)
+      // Laravel Sanctum CSRF
+      await api.get('/sanctum/csrf-cookie').catch(() => {})
 
       const response = await api.post('/login', credentials)
-      console.log('Login response:', response.data)
 
-      // Check if user is authenticated (has user data)
-      let userData = null
-      if (response.data.data?.user) {
-        userData = response.data.data.user
-      } else if (response.data.user) {
-        userData = response.data.user
-      }
+      const userData = response.data?.data?.user || response.data?.user || null
+
+      const perms = response.data?.data?.permissions || []
 
       if (!userData) {
-        throw new Error('No user data returned - authentication failed')
+        throw new Error('Authentication failed')
       }
 
-      // Store user data
+      // Save state
       user.value = userData
+      permissions.value = perms
 
-      // Get permissions if available
-      if (response.data.data?.permissions) {
-        permissions.value = response.data.data.permissions
-      }
+      // Persist session
+      localStorage.setItem('auth_user', JSON.stringify(userData))
+      localStorage.setItem('auth_permissions', JSON.stringify(perms))
 
-      isAuthenticated.value = true
-      console.log('✅ Login successful - authenticated user')
       return { success: true }
     } catch (err) {
-      console.error('❌ Login failed:', err)
+      error.value = parseError(err)
 
-      // Handle Laravel error responses
-      if (err.response) {
-        const status = err.response.status
-        const data = err.response.data
-
-        if (status === 401) {
-          error.value = 'Invalid credentials - access denied'
-        } else if (status === 403) {
-          error.value = 'Account is inactive - contact administrator'
-        } else if (status === 422) {
-          error.value = 'Validation error: ' + JSON.stringify(data.errors)
-        } else if (data.message) {
-          error.value = data.message
-        } else {
-          error.value = 'Login failed. Access denied.'
-        }
-      } else if (err.request) {
-        error.value = 'No response from server. Check your connection.'
-      } else {
-        error.value = err.message || 'An error occurred'
+      return {
+        success: false,
+        message: error.value,
       }
-
-      return { success: false, error: error.value }
     } finally {
       loading.value = false
     }
   }
 
-  // Simple logout
-  const logout = () => {
-    console.log('Logging out')
-    isAuthenticated.value = false
-    user.value = null
-    permissions.value = []
-    error.value = null
-
-    // Call logout endpoint to destroy session
+  /**
+   * Logout user
+   */
+  const logout = async () => {
     try {
-      api.post('/logout').catch(() => {})
+      await api.post('/logout')
     } catch (e) {
-      // Ignore errors
+      // ignore API errors
     }
+
+    clearSession()
   }
 
-  // Initialize auth - check if session exists
+  /**
+   * Restore auth session
+   */
   const initAuth = async () => {
-    try {
-      const response = await api.get('/user').catch(() => null)
-
-      if (response && response.data) {
-        // Extract user data
-        let userData = null
-        if (response.data.data?.user) {
-          userData = response.data.data.user
-        } else if (response.data.user) {
-          userData = response.data.user
-        }
-
-        if (userData) {
-          user.value = userData
-          isAuthenticated.value = true
-          console.log('✅ Authenticated session restored')
-          return true
-        }
-      }
-    } catch (e) {
-      console.log('No authenticated session')
+    if (user.value) {
+      return true
     }
 
-    isAuthenticated.value = false
-    user.value = null
+    try {
+      const response = await api.get('/user')
+
+      const userData = response.data?.data?.user || response.data?.user || null
+
+      if (userData) {
+        user.value = userData
+
+        localStorage.setItem('auth_user', JSON.stringify(userData))
+
+        return true
+      }
+    } catch (e) {
+      clearSession()
+    }
+
     return false
   }
 
-  // Check auth - simple boolean
-  const checkAuth = () => {
-    return isAuthenticated.value
+  /**
+   * Check auth quickly
+   */
+  const checkAuth = () => !!user.value
+
+  /**
+   * Clear session data
+   */
+  const clearSession = () => {
+    user.value = null
+    permissions.value = []
+
+    localStorage.removeItem('auth_user')
+    localStorage.removeItem('auth_permissions')
   }
 
-  // Dummy trackActivity to prevent errors
-  const trackActivity = () => {
-    // Do nothing - just a stub
+  /**
+   * Activity tracker placeholder
+   */
+  const trackActivity = () => true
+
+  /*
+  |--------------------------------------------------------------------------
+  | Helpers
+  |--------------------------------------------------------------------------
+  */
+
+  const parseError = (err) => {
+    if (!err.response) {
+      return 'Unable to reach server'
+    }
+
+    const { status, data } = err.response
+
+    if (status === 401) {
+      return 'Invalid email or password'
+    }
+
+    if (status === 403) {
+      return 'Account access denied'
+    }
+
+    if (status === 422) {
+      return Object.values(data.errors || {})
+        .flat()
+        .join(', ')
+    }
+
+    return data.message || 'Authentication error'
   }
 
-  // Computed
-  const userRole = computed(() => user.value?.role || user.value?.roles?.[0]?.name || null)
-  const userName = computed(() => user.value?.name || user.value?.email || 'Guest')
+  /*
+  |--------------------------------------------------------------------------
+  | EXPORTS
+  |--------------------------------------------------------------------------
+  */
 
   return {
-    // State
+    // state
     user,
+    permissions,
     loading,
     error,
+
+    // getters
     isAuthenticated,
-    permissions,
-
-    // Computed
-    userRole,
     userName,
+    userRole,
 
-    // Methods
+    // actions
     login,
     logout,
     initAuth,
     checkAuth,
     trackActivity,
+
+    // axios instance
     api,
   }
 })
