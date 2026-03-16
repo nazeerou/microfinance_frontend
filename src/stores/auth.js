@@ -104,10 +104,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Safe fetchUser - just returns existing user without API call (FIXED - no auto-logout)
-  const fetchUser = async () => {
-    // Just return existing user data without API call
-    return user.value
-  }
+  // const fetchUser = async () => {
+  //   // Just return existing user data without API call
+  //   return user.value
+  // }
 
   // Simple logout
   const logout = () => {
@@ -185,7 +185,7 @@ export const useAuthStore = defineStore('auth', () => {
     // Methods
     login,
     logout,
-    fetchUser,
+    // fetchUser,
     initAuth,
     checkAuth,
     trackActivity, // Stub to prevent errors
