@@ -1,29 +1,15 @@
 import axios from 'axios'
-//// Local
-const api = axios.create({
-  // baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1',
-  baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
 
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
   },
   withCredentials: true, // This sends cookies with requests
-  timeout: 3000,
+  timeout: 30000, // Increased from 3000 to 30000 (30 seconds)
 })
-
-// // Online
-// const api = axios.create({
-//   baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
-//   headers: {
-//     'Content-Type': 'application/json',
-//     Accept: 'application/json',
-//     'X-Requested-With': 'XMLHttpRequest',
-//   },
-//   withCredentials: true, // This sends cookies with requests
-//   timeout: 30000,
-// })
 
 // Request interceptor
 api.interceptors.request.use(
@@ -37,21 +23,17 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 )
 
-// Response interceptor
+// Response interceptor - FIXED to prevent automatic logout
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized
-      localStorage.removeItem('token')
-      window.location.href = '/login'
-    }
-
     // Log CORS errors specifically
     if (error.message === 'Network Error') {
       console.error('CORS Error or Network Issue. Check backend configuration.')
     }
 
+    // DON'T automatically logout on 401 - let the app handle it
+    // Just return the error
     return Promise.reject(error)
   },
 )
