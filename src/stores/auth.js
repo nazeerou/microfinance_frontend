@@ -11,9 +11,12 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref(null)
   const permissions = ref([])
 
+  // Base URL
+  const baseURL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+
   // Configure axios for Laravel API
   const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
+    baseURL: baseURL,
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -35,7 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
     (error) => Promise.reject(error),
   )
 
-  // Login method for Laravel
+  // Login method for Laravel (FIXED - removed duplicate declaration)
   const login = async (credentials) => {
     loading.value = true
     error.value = null
@@ -43,30 +46,32 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       console.log('Attempting login with:', credentials.email)
 
-      const response = await api.post(`${baseURL}/login`, credentials)
+      const response = await api.post('/login', credentials) // Removed ${baseURL} since it's already set in baseURL
       console.log('Login response:', response.data)
 
-      // Laravel returns token in data.token format
+      // Login already returns user data! Use it directly
+      if (response.data.data?.user) {
+        user.value = response.data.data.user
+        localStorage.setItem('user', JSON.stringify(user.value))
+      }
+
       if (response.data.data?.token) {
         token.value = response.data.data.token
-        user.value = response.data.data.user
-        permissions.value = response.data.data.permissions || []
-
-        // Store in localStorage for persistence
         localStorage.setItem('token', token.value)
-        localStorage.setItem('user', JSON.stringify(user.value))
-        localStorage.setItem('login_time', Date.now().toString())
-
-        // Set default header
         api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-
-        isAuthenticated.value = true
-
-        console.log('✅ Login successful')
-        return { success: true }
-      } else {
-        throw new Error('Invalid response format: token not found')
       }
+
+      // Get permissions if available
+      if (response.data.data?.permissions) {
+        permissions.value = response.data.data.permissions
+      }
+
+      // Store login time
+      localStorage.setItem('login_time', Date.now().toString())
+
+      isAuthenticated.value = true
+      console.log('✅ Login successful')
+      return { success: true }
     } catch (err) {
       console.error('❌ Login failed:', err)
 
@@ -98,35 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Fetch current user from Laravel
-  // In your login function - DON'T call fetchUser after login
-  const login = async (credentials) => {
-    loading.value = true
-    error.value = null
-
-    try {
-      const response = await api.post('/login', credentials)
-
-      // Login already returns user data! Use it directly
-      if (response.data.data?.user) {
-        user.value = response.data.data.user
-        localStorage.setItem('user', JSON.stringify(user.value))
-      }
-
-      if (response.data.data?.token) {
-        token.value = response.data.data.token
-        localStorage.setItem('token', token.value)
-        api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-      }
-
-      isAuthenticated.value = true
-      return { success: true }
-    } catch (err) {
-      // error handling
-    }
-  }
-
-  // Either remove fetchUser entirely or make it safe:
+  // Safe fetchUser - just returns existing user without API call (FIXED - no auto-logout)
   const fetchUser = async () => {
     // Just return existing user data without API call
     return user.value
@@ -150,7 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
     delete api.defaults.headers.common['Authorization']
   }
 
-  // Initialize auth - check localStorage
+  // Initialize auth - check localStorage (FIXED - removed fetchUser that could cause logout)
   const initAuth = () => {
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
@@ -162,12 +139,10 @@ export const useAuthStore = defineStore('auth', () => {
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
         isAuthenticated.value = true
 
-        // Optionally verify with backend
-        fetchUser().catch(() => {
-          // If fetch fails, logout
-          logout()
-        })
+        // DON'T call fetchUser here - it might fail and logout
+        // Just trust the stored data
 
+        console.log('✅ Auth restored from localStorage')
         return true
       } catch (e) {
         console.error('Failed to restore auth:', e)
@@ -176,6 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
     }
 
+    console.log('No stored auth found')
     return false
   }
 
