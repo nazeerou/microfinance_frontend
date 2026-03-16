@@ -8,7 +8,6 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const loading = ref(false)
   const error = ref(null)
-  const token = ref(null) // Added for compatibility
 
   // Configure axios
   const api = axios.create({
@@ -20,84 +19,93 @@ export const useAuthStore = defineStore('auth', () => {
     timeout: 30000,
   })
 
-  // Simple login - no localStorage
+  // Login method with better error handling
   const login = async (credentials) => {
     loading.value = true
     error.value = null
 
+    console.log('Attempting login with:', {
+      username: credentials.username,
+      password: credentials.password ? '[PROVIDED]' : '[MISSING]',
+    })
+
     try {
       const response = await api.post('/login', credentials)
 
-      // Check if login successful
+      console.log('Login response:', {
+        status: response.status,
+        data: response.data,
+      })
+
       if (response.status === 200) {
         isAuthenticated.value = true
-
-        // Store user data if returned
-        if (response.data.user) {
-          user.value = response.data.user
-        }
-
-        // Store token if returned (optional)
-        if (response.data.token) {
-          token.value = response.data.token
-        }
-
+        user.value = response.data.user || null
         return { success: true }
       }
     } catch (err) {
-      console.error('Login failed:', err)
-      error.value = err.response?.data?.message || 'Login failed. Please check your credentials.'
+      console.error('Full error object:', err)
+
+      // Detailed error handling
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error('Error response data:', err.response.data)
+        console.error('Error response status:', err.response.status)
+        console.error('Error response headers:', err.response.headers)
+
+        error.value =
+          err.response.data?.message ||
+          err.response.data?.error ||
+          `Login failed (${err.response.status})`
+
+        // Check for specific status codes
+        if (err.response.status === 401) {
+          error.value = 'Invalid username or password'
+        } else if (err.response.status === 422) {
+          error.value = 'Validation error: ' + JSON.stringify(err.response.data.errors)
+        } else if (err.response.status === 403) {
+          error.value = 'Account locked or disabled'
+        } else if (err.response.status === 500) {
+          error.value = 'Server error. Please try again later.'
+        }
+      } else if (err.request) {
+        // The request was made but no response was received
+        console.error('No response received:', err.request)
+        error.value = 'No response from server. Check your network connection.'
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error('Request setup error:', err.message)
+        error.value = 'Request failed: ' + err.message
+      }
+
       return { success: false, error: error.value }
     } finally {
       loading.value = false
     }
   }
 
-  // Simple logout
   const logout = () => {
     isAuthenticated.value = false
     user.value = null
-    token.value = null
   }
 
-  // Add initAuth for compatibility (does nothing in simple mode)
-  const initAuth = async () => {
-    console.log('initAuth called - no persistence in simple mode')
-    return false // Not authenticated on page load
-  }
-
-  // Add checkAuth for compatibility
-  const checkAuth = () => {
-    console.log('checkAuth called')
-    return isAuthenticated.value
-  }
-
-  // Add fetchUser for compatibility
-  const fetchUser = async () => {
-    if (isAuthenticated.value && user.value) {
-      return user.value
-    }
-    return null
-  }
-
-  // Add refreshToken for compatibility (does nothing)
-  const refreshToken = async () => {
-    console.log('refreshToken called - not implemented in simple mode')
-    return null
-  }
+  // Stub methods for compatibility
+  const initAuth = async () => isAuthenticated.value
+  const checkAuth = () => isAuthenticated.value
+  const fetchUser = async () => user.value
+  const refreshToken = async () => null
 
   return {
     user,
-    token,
     loading,
     error,
     isAuthenticated,
     login,
     logout,
-    initAuth, // Added for compatibility
-    checkAuth, // Added for compatibility
-    fetchUser, // Added for compatibility
-    refreshToken, // Added for compatibility
-    api, // Added for compatibility
+    initAuth,
+    checkAuth,
+    fetchUser,
+    refreshToken,
+    api,
   }
 })
