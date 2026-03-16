@@ -19,8 +19,8 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-const authStore = useAuthStore()
-authStore.initAuth() // IMPORTANT
+// const authStore = useAuthStore()
+// authStore.initAuth() // IMPORTANT
 
 // const trackActivity = () => {
 //   authStore.trackActivity()
@@ -28,7 +28,7 @@ authStore.initAuth() // IMPORTANT
 
 onMounted(async () => {
   // Initialize auth state on app start - this will restore from localStorage
-  await authStore.initAuth()
+  // await authStore.initAuth()
 })
 
 onUnmounted(() => {
