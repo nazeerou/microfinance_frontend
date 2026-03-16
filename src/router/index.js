@@ -223,18 +223,25 @@ const router = createRouter({
 })
 
 // FIXED navigation guard - NO automatic logout
+// STRICT navigation guard - EVERYTHING requires auth EXCEPT login
 router.beforeEach((to, from, next) => {
-  // Set page title
-  if (to.meta.title) {
-    document.title = `${to.meta.title} | TAMARA MicroFinance`
-  } else {
-    document.title = 'TAMARA MicroFinance'
-  }
+  const authStore = useAuthStore()
 
-  // NO AUTH CHECKS - just redirect to dashboard for root path
-  if (to.path === '/') {
-    next('/dashboard')
+  // Allow access to login page even if not authenticated
+  if (to.path === '/login') {
+    // If already authenticated, go to dashboard instead of login
+    if (authStore.isAuthenticated) {
+      next('/dashboard')
+    } else {
+      next()
+    }
+  }
+  // All other routes require authentication
+  else if (!authStore.isAuthenticated) {
+    // Not authenticated - redirect to login
+    next('/login')
   } else {
+    // Authenticated - proceed
     next()
   }
 })
