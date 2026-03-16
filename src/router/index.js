@@ -224,8 +224,6 @@ const router = createRouter({
 
 // FIXED navigation guard - NO automatic logout
 router.beforeEach((to, from, next) => {
-  const authStore = useAuthStore()
-
   // Set page title
   if (to.meta.title) {
     document.title = `${to.meta.title} | TAMARA MicroFinance`
@@ -233,25 +231,10 @@ router.beforeEach((to, from, next) => {
     document.title = 'TAMARA MicroFinance'
   }
 
-  // Check if route requires authentication
-  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
-
-  // Check if route is for guests only (like login)
-  const requiresGuest = to.matched.some((record) => record.meta.requiresGuest)
-
-  // Get authentication status - use isAuthenticated directly, NOT checkAuth()
-  const isAuthenticated = authStore.isAuthenticated
-
-  // Case 1: Route requires auth but user is not authenticated
-  if (requiresAuth && !isAuthenticated) {
-    next({ path: '/login', query: { redirect: to.fullPath } })
-  }
-  // Case 2: Route is for guests only but user is authenticated
-  else if (requiresGuest && isAuthenticated) {
-    next({ path: '/dashboard' })
-  }
-  // Case 3: All good - proceed
-  else {
+  // NO AUTH CHECKS - just redirect to dashboard for root path
+  if (to.path === '/') {
+    next('/dashboard')
+  } else {
     next()
   }
 })
