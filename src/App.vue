@@ -1,12 +1,6 @@
 <!-- App.vue -->
 <template>
-  <div
-    id="app"
-    @mousemove="trackActivity"
-    @keydown="trackActivity"
-    @click="trackActivity"
-    @scroll="trackActivity"
-  >
+  <div id="app">
     <router-view v-slot="{ Component }">
       <transition name="fade" mode="out-in">
         <component :is="Component" />
@@ -19,16 +13,9 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-// const authStore = useAuthStore()
-// authStore.initAuth() // IMPORTANT
-
-// const trackActivity = () => {
-//   authStore.trackActivity()
-// }
-
+// Only if you need to initialize something
 onMounted(async () => {
-  // Initialize auth state on app start - this will restore from localStorage
-  // await authStore.initAuth()
+  console.log('App mounted')
 })
 
 onUnmounted(() => {

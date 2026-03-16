@@ -4,13 +4,12 @@ import { ref, computed } from 'vue'
 import axios from 'axios'
 
 export const useAuthStore = defineStore('auth', () => {
-  // Simple state - only in memory
   const isAuthenticated = ref(false)
   const user = ref(null)
   const loading = ref(false)
   const error = ref(null)
 
-  // Configure axios
+  // Configure axios for Laravel API
   const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
     headers: {
@@ -20,36 +19,49 @@ export const useAuthStore = defineStore('auth', () => {
     timeout: 30000,
   })
 
-  // SIMPLE LOGIN - only sets state on success
+  // Simple login - just validate credentials
   const login = async (credentials) => {
     loading.value = true
     error.value = null
 
     try {
+      // Send login request
       const response = await api.post('/login', credentials)
 
-      // Login successful - just set authenticated to true
+      // If we get here, login was successful (2xx response)
       isAuthenticated.value = true
 
-      // Store user data if returned (optional)
+      // Store user data if returned
       if (response.data.user) {
         user.value = response.data.user
       } else if (response.data.data?.user) {
         user.value = response.data.data.user
       }
 
-      console.log('✅ Login successful', { isAuthenticated: isAuthenticated.value })
       return { success: true }
     } catch (err) {
-      console.error('❌ Login failed:', err)
+      console.error('Login failed:', err)
 
-      // Handle error
-      if (err.response?.status === 401) {
-        error.value = 'Invalid username or password'
-      } else if (err.response?.data?.message) {
-        error.value = err.response.data.message
+      // Handle different error responses
+      if (err.response) {
+        // Server responded with error
+        if (err.response.status === 401) {
+          error.value = 'Invalid username or password'
+        } else if (err.response.status === 422) {
+          error.value = 'Validation error: Please check your input'
+        } else if (err.response.status === 403) {
+          error.value = 'Account is locked or disabled'
+        } else if (err.response.data?.message) {
+          error.value = err.response.data.message
+        } else {
+          error.value = 'Login failed. Please try again.'
+        }
+      } else if (err.request) {
+        // Request made but no response
+        error.value = 'No response from server. Check your connection.'
       } else {
-        error.value = 'Login failed. Please try again.'
+        // Something else went wrong
+        error.value = 'An error occurred. Please try again.'
       }
 
       return { success: false, error: error.value }
@@ -58,67 +70,47 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // SIMPLE LOGOUT - just clear state
+  // Simple logout
   const logout = () => {
-    console.log('Logging out')
     isAuthenticated.value = false
     user.value = null
     error.value = null
   }
 
-  // NO AUTO FETCHING - just return current state
-  const checkAuth = () => {
-    return isAuthenticated.value
-  }
-
-  // NO AUTO FETCHING - just return false (not authenticated on page load)
+  // Initialize auth - simple check
   const initAuth = () => {
-    console.log('initAuth called - not authenticated on page load')
+    // In simple mode, we're not authenticated on page load
+    // User must log in again
     isAuthenticated.value = false
     user.value = null
     return false
   }
 
-  // STUB FUNCTIONS - to prevent "not a function" errors
-  const trackActivity = () => {
-    // Do nothing
-  }
-
-  const refreshToken = async () => {
-    return null
-  }
-
-  const fetchUser = async () => {
-    return user.value
+  // Check auth - simple boolean
+  const checkAuth = () => {
+    return isAuthenticated.value
   }
 
   // Computed
+  const userRole = computed(() => user.value?.role || user.value?.roles?.[0] || null)
   const userName = computed(() => user.value?.name || user.value?.email || 'Guest')
-  const userRole = computed(() => user.value?.role || null)
 
   return {
     // State
-    isAuthenticated,
     user,
     loading,
     error,
+    isAuthenticated,
 
     // Computed
-    userName,
     userRole,
+    userName,
 
-    // Core methods
+    // Methods
     login,
     logout,
-    checkAuth,
     initAuth,
-
-    // Stub methods (to prevent errors)
-    trackActivity,
-    refreshToken,
-    fetchUser,
-
-    // API instance (if needed)
+    checkAuth,
     api,
   }
 })
