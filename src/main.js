@@ -14,9 +14,9 @@ app.use(pinia)
 app.use(router)
 
 // Initialize sync service with auth store
-const authStore = useAuthStore()
-authStore.initAuth() // IMPORTANT
+// const authStore = useAuthStore()
+// authStore.initAuth() // IMPORTANT
 
-syncService.init(authStore)
+// syncService.init(authStore)
 
 app.mount('#app')
