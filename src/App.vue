@@ -1,12 +1,6 @@
-<!-- App.vue -->
 <template>
-  <div
-    id="app"
-    @mousemove="trackActivity"
-    @keydown="trackActivity"
-    @click="trackActivity"
-    @scroll="trackActivity"
-  >
+  <div id="app">
+    <!-- No event handlers -->
     <router-view v-slot="{ Component }">
       <transition name="fade" mode="out-in">
         <component :is="Component" />
@@ -21,14 +15,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 
-// This function now exists in your store
-const trackActivity = () => {
-  authStore.trackActivity()
-}
-
 onMounted(() => {
-  // Restore auth state from localStorage
-  authStore.initAuth()
-  console.log('App mounted, auth restored:', authStore.isAuthenticated)
+  console.log('App mounted, auth status:', authStore.isAuthenticated)
 })
 </script>
