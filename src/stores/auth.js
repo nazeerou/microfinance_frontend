@@ -6,7 +6,6 @@ import axios from 'axios'
 export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = ref(false)
   const user = ref(null)
-  const token = ref(null)
   const loading = ref(false)
   const error = ref(null)
   const permissions = ref([])
@@ -26,19 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
     timeout: 30000,
   })
 
-  // Request interceptor to add token
-  api.interceptors.request.use(
-    (config) => {
-      const currentToken = token.value || localStorage.getItem('token')
-      if (currentToken && !config.url.includes('/login')) {
-        config.headers.Authorization = `Bearer ${currentToken}`
-      }
-      return config
-    },
-    (error) => Promise.reject(error),
-  )
-
-  // Login method for Laravel (FIXED - removed duplicate declaration)
+  // Login method - only allows authenticated users
   const login = async (credentials) => {
     loading.value = true
     error.value = null
@@ -46,31 +33,31 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       console.log('Attempting login with:', credentials.email)
 
-      const response = await api.post('/login', credentials) // Removed ${baseURL} since it's already set in baseURL
+      const response = await api.post('/login', credentials)
       console.log('Login response:', response.data)
 
-      // Login already returns user data! Use it directly
+      // Check if user is authenticated (has user data)
+      let userData = null
       if (response.data.data?.user) {
-        user.value = response.data.data.user
-        localStorage.setItem('user', JSON.stringify(user.value))
+        userData = response.data.data.user
+      } else if (response.data.user) {
+        userData = response.data.user
       }
 
-      if (response.data.data?.token) {
-        token.value = response.data.data.token
-        localStorage.setItem('token', token.value)
-        api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+      if (!userData) {
+        throw new Error('No user data returned - authentication failed')
       }
+
+      // Store user data
+      user.value = userData
 
       // Get permissions if available
       if (response.data.data?.permissions) {
         permissions.value = response.data.data.permissions
       }
 
-      // Store login time
-      localStorage.setItem('login_time', Date.now().toString())
-
       isAuthenticated.value = true
-      console.log('✅ Login successful')
+      console.log('✅ Login successful - authenticated user')
       return { success: true }
     } catch (err) {
       console.error('❌ Login failed:', err)
@@ -81,15 +68,15 @@ export const useAuthStore = defineStore('auth', () => {
         const data = err.response.data
 
         if (status === 401) {
-          error.value = data.message || 'Invalid credentials'
+          error.value = 'Invalid credentials - access denied'
         } else if (status === 403) {
-          error.value = data.message || 'Account is inactive'
+          error.value = 'Account is inactive - contact administrator'
         } else if (status === 422) {
           error.value = 'Validation error: ' + JSON.stringify(data.errors)
         } else if (data.message) {
           error.value = data.message
         } else {
-          error.value = 'Login failed. Please try again.'
+          error.value = 'Login failed. Access denied.'
         }
       } else if (err.request) {
         error.value = 'No response from server. Check your connection.'
@@ -103,55 +90,49 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Safe fetchUser - just returns existing user without API call (FIXED - no auto-logout)
-  // const fetchUser = async () => {
-  //   // Just return existing user data without API call
-  //   return user.value
-  // }
-
   // Simple logout
   const logout = () => {
     console.log('Logging out')
     isAuthenticated.value = false
     user.value = null
-    token.value = null
     permissions.value = []
     error.value = null
 
-    // Clear localStorage
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('login_time')
-
-    // Clear auth header
-    delete api.defaults.headers.common['Authorization']
+    // Call logout endpoint to destroy session
+    try {
+      api.post('/logout').catch(() => {})
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
-  // Initialize auth - check localStorage (FIXED - removed fetchUser that could cause logout)
-  const initAuth = () => {
-    const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
+  // Initialize auth - check if session exists
+  const initAuth = async () => {
+    try {
+      const response = await api.get('/user').catch(() => null)
 
-    if (storedToken && storedUser) {
-      try {
-        token.value = storedToken
-        user.value = JSON.parse(storedUser)
-        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
-        isAuthenticated.value = true
+      if (response && response.data) {
+        // Extract user data
+        let userData = null
+        if (response.data.data?.user) {
+          userData = response.data.data.user
+        } else if (response.data.user) {
+          userData = response.data.user
+        }
 
-        // DON'T call fetchUser here - it might fail and logout
-        // Just trust the stored data
-
-        console.log('✅ Auth restored from localStorage')
-        return true
-      } catch (e) {
-        console.error('Failed to restore auth:', e)
-        logout()
-        return false
+        if (userData) {
+          user.value = userData
+          isAuthenticated.value = true
+          console.log('✅ Authenticated session restored')
+          return true
+        }
       }
+    } catch (e) {
+      console.log('No authenticated session')
     }
 
-    console.log('No stored auth found')
+    isAuthenticated.value = false
+    user.value = null
     return false
   }
 
@@ -172,7 +153,6 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     // State
     user,
-    token,
     loading,
     error,
     isAuthenticated,
@@ -185,10 +165,9 @@ export const useAuthStore = defineStore('auth', () => {
     // Methods
     login,
     logout,
-    // fetchUser,
     initAuth,
     checkAuth,
-    trackActivity, // Stub to prevent errors
+    trackActivity,
     api,
   }
 })
