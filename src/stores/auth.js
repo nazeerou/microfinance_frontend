@@ -366,6 +366,50 @@ export const useAuthStore = defineStore('auth', () => {
       }
     }
 
+    // FIX: If no token but user exists (inconsistent state), recreate token
+    if (!token.value && !storedToken && (user.value || storedUser)) {
+      console.log(
+        '⚠️ Inconsistent state: User exists but no token found. Attempting to recreate token...',
+      )
+
+      try {
+        // Try to refresh token using the existing session (withCredentials)
+        const response = await api.get('/refresh').catch((err) => {
+          console.log('Refresh failed, trying to get new token via /user', err)
+          return api.get('/user')
+        })
+
+        const responseData = response.data
+        let newToken = null
+
+        if (responseData.data?.token) {
+          newToken = responseData.data.token
+        } else if (responseData.token) {
+          newToken = responseData.token
+        }
+
+        if (newToken) {
+          console.log('✅ Token recreated successfully')
+          token.value = newToken
+          localStorage.setItem('token', newToken)
+          localStorage.setItem('login_time', Date.now().toString())
+          api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+        } else {
+          // If we can't recreate token, clear user data
+          console.log('❌ Could not recreate token, clearing user data')
+          user.value = null
+          localStorage.removeItem('user')
+          return false
+        }
+      } catch (refreshError) {
+        console.error('❌ Failed to recreate token:', refreshError)
+        // Clear inconsistent data
+        user.value = null
+        localStorage.removeItem('user')
+        return false
+      }
+    }
+
     // If no token at all, not authenticated
     if (!token.value && !storedToken) {
       console.log('No token found')
@@ -380,7 +424,33 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (elapsed > TOKEN_LIFETIME) {
         console.log('Token expired based on login time')
-        // Clear expired token but don't auto logout
+
+        // Try to refresh expired token
+        try {
+          console.log('Attempting to refresh expired token...')
+          const response = await api.get('/refresh')
+          const responseData = response.data
+
+          let newToken = null
+          if (responseData.data?.token) {
+            newToken = responseData.data.token
+          } else if (responseData.token) {
+            newToken = responseData.token
+          }
+
+          if (newToken) {
+            console.log('✅ Expired token refreshed successfully')
+            token.value = newToken
+            localStorage.setItem('token', newToken)
+            localStorage.setItem('login_time', Date.now().toString())
+            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+            return true
+          }
+        } catch (refreshError) {
+          console.log('❌ Could not refresh expired token:', refreshError)
+        }
+
+        // If refresh failed, clear auth
         clearAuth()
         return false
       }
