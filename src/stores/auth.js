@@ -436,6 +436,33 @@ export const useAuthStore = defineStore('auth', () => {
   const INACTIVITY_LIMIT = 30 * 60 * 1000 // 30 minutes in milliseconds
   const lastActivity = ref(Date.now())
 
+  // Add this at the beginning of your store to track what's causing logout
+  const debugLog = (message, data) => {
+    console.log(`[AUTH DEBUG] ${message}`, {
+      timestamp: new Date().toISOString(),
+      hasToken: !!token.value,
+      hasUser: !!user.value,
+      isRefreshing: isRefreshing.value,
+      ...data,
+    })
+  }
+
+  // Then add debug calls in key places:
+  // In login success:
+  debugLog('Login successful', { token: tokenData?.substring(0, 10) + '...' })
+
+  // In response interceptor before refresh:
+  debugLog('401 received', { url: originalRequest?.url })
+
+  // In refreshToken method:
+  debugLog('Refreshing token')
+
+  // In logout method:
+  debugLog('Logout called', { reason: 'manual logout' })
+
+  // In clearAuth:
+  debugLog('Clearing auth')
+
   // Configure axios
   const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1',
@@ -468,7 +495,7 @@ export const useAuthStore = defineStore('auth', () => {
     (error) => Promise.reject(error),
   )
 
-  // Response interceptor with token refresh - FIXED
+  // Response interceptor with token refresh - IMPROVED
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -503,6 +530,14 @@ export const useAuthStore = defineStore('auth', () => {
         isRefreshing.value = true
 
         try {
+          // Check if we're very recently logged in (less than 2 seconds ago)
+          const loginTime = localStorage.getItem('login_time')
+          if (loginTime && Date.now() - parseInt(loginTime) < 2000) {
+            console.log('Skipping refresh - just logged in')
+            isRefreshing.value = false
+            return Promise.reject(error)
+          }
+
           // Attempt to refresh token
           const currentToken = token.value || localStorage.getItem('token')
           if (!currentToken) {
@@ -533,9 +568,8 @@ export const useAuthStore = defineStore('auth', () => {
           console.error('Token refresh failed:', refreshError)
           isRefreshing.value = false
 
-          // Don't auto logout, just clear the current request's auth
-          // The user will need to login again for new requests
-          return Promise.reject(refreshError)
+          // Don't logout, just reject the original request
+          return Promise.reject(error)
         }
       }
 
@@ -595,6 +629,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Login method
+  // Login method - FIXED
   const login = async (credentials) => {
     loading.value = true
     try {
@@ -627,8 +662,11 @@ export const useAuthStore = defineStore('auth', () => {
       // Set default header
       api.defaults.headers.common['Authorization'] = `Bearer ${tokenData}`
 
-      // Setup activity tracking
-      setupActivityTracking()
+      // Small delay before setting up activity tracking
+      // This prevents any immediate post-login requests from triggering refresh
+      setTimeout(() => {
+        setupActivityTracking()
+      }, 100)
 
       return responseData
     } catch (error) {
@@ -638,7 +676,6 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false
     }
   }
-
   // Refresh token - SIMPLIFIED
   const refreshToken = async () => {
     const currentToken = token.value || localStorage.getItem('token')
