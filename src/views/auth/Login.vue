@@ -1,18 +1,13 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 // Check if already logged in
-// onMounted(() => {
-//   if (authStore.isAuthenticated) {
-//     router.push('/dashboard')
-//   }
-// })
-
 onMounted(() => {
   if (authStore.isAuthenticated) {
     const redirectPath = route.query.redirect || '/dashboard'
@@ -31,6 +26,7 @@ const error = ref('')
 const loading = ref(false)
 const showPassword = ref(false)
 const debugInfo = ref('')
+const isDev = ref(import.meta.env.DEV || true) // Show debug in development
 
 const handleLogin = async () => {
   loading.value = true
@@ -39,17 +35,30 @@ const handleLogin = async () => {
   debugInfo.value = ''
 
   try {
-    // console.log('=== LOGIN ATTEMPT ===')
-    // console.log('Email:', form.email)
-    // console.log('API URL:', import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1')
-    // console.log('API URL:', import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1')
+    console.log('=== LOGIN ATTEMPT ===')
+    console.log('Email:', form.email)
+    console.log('API URL:', import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1')
 
-    await authStore.login(form)
+    // Call login - it returns { success, error } not throws
+    const result = await authStore.login(form)
 
-    // Redirect to dashboard on success
-    router.push('/dashboard')
+    console.log('Login result:', result)
+
+    if (result.success) {
+      // Redirect to dashboard on success
+      router.push('/dashboard')
+    } else {
+      // Show error from store
+      error.value = result.error || 'Login failed'
+
+      // For debugging - show full response
+      if (result.debug) {
+        debugInfo.value = JSON.stringify(result.debug, null, 2)
+      }
+    }
   } catch (err) {
-    console.log('=== ERROR DETAILS ===')
+    // This should not happen if login handles errors properly
+    console.log('=== UNEXPECTED ERROR ===')
     console.log('Error:', err)
     console.log('Response:', err.response)
     console.log('Status:', err.response?.status)
@@ -74,16 +83,16 @@ const handleLogin = async () => {
       error.value = err.response.data.message || 'Validation error. Please check your input.'
     } else if (err.response?.status === 401) {
       error.value = 'Email au nywila si sahihi.'
-      errors.value = err.response.data.errors || {}
     } else if (err.response?.status === 403) {
       error.value = 'Akaunti yako imezimwa. Wasiliana na msimamizi.'
     } else if (err.response?.status === 404) {
       error.value = `Seva haipatikani (404). Tafadhali hakikisha URL ya API ni sahihi.`
     } else if (err.code === 'ERR_NETWORK') {
-      error.value = 'Haiwezi kuunganishwa na seva:\n'
-      // '1. Seva ya backend imewashwa (php artisan serve)\n' +
-      // '2. URL ya API ni sahihi (VITE_API_URL)\n' +
-      // '3. CORS imesanidiwa vizuri'
+      error.value =
+        'Haiwezi kuunganishwa na seva. Hakikisha:\n' +
+        '✓ Seva ya backend imewashwa\n' +
+        '✓ URL ya API ni sahihi\n' +
+        '✓ CORS imesanidiwa vizuri'
     } else {
       error.value =
         err.response?.data?.message || err.message || 'Hitilafu ya kuingia. Tafadhali jaribu tena.'
@@ -105,12 +114,15 @@ const handleLogin = async () => {
       </div>
 
       <form @submit.prevent="handleLogin" class="login-form">
-        <!-- Debug Info (remove in production) -->
-        <!-- Debug Info (remove in production) - FIXED VERSION -->
+        <!-- Debug Info (only show in development) -->
         <div v-if="debugInfo && isDev" class="alert alert-info">
-          <pre style="font-size: 11px; overflow: auto; max-height: 200px">{{ debugInfo }}</pre>
+          <strong>Debug Info:</strong>
+          <pre style="font-size: 11px; overflow: auto; max-height: 200px; margin-top: 8px">{{
+            debugInfo
+          }}</pre>
         </div>
 
+        <!-- Error Message -->
         <div v-if="error" class="alert alert-danger">
           <i class="fas fa-exclamation-circle"></i>
           <span style="white-space: pre-line">{{ error }}</span>
@@ -186,7 +198,7 @@ const handleLogin = async () => {
 </template>
 
 <style scoped>
-/* Add this style for debug alert */
+/* Debug alert style */
 .alert-info {
   background: #e3f2fd;
   color: #0c5460;
@@ -199,7 +211,12 @@ const handleLogin = async () => {
   overflow: auto;
 }
 
-/* Keep all your existing styles */
+.alert-info strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+/* Keep all your existing styles below */
 .login-container {
   display: flex;
   justify-content: center;

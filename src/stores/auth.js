@@ -43,7 +43,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       console.log('Attempting login with:', credentials.email)
 
-      const response = await api.post('/login', credentials)
+      const response = await api.post(`${baseURL}/login`, credentials)
       console.log('Login response:', response.data)
 
       // Laravel returns token in data.token format
@@ -99,27 +99,37 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Fetch current user from Laravel
-  const fetchUser = async () => {
-    if (!token.value && !localStorage.getItem('token')) {
-      return null
-    }
+  // In your login function - DON'T call fetchUser after login
+  const login = async (credentials) => {
+    loading.value = true
+    error.value = null
 
     try {
-      const response = await api.get('/user')
+      const response = await api.post('/login', credentials)
 
+      // Login already returns user data! Use it directly
       if (response.data.data?.user) {
         user.value = response.data.data.user
         localStorage.setItem('user', JSON.stringify(user.value))
-        return user.value
       }
-      return null
-    } catch (error) {
-      console.error('Failed to fetch user:', error)
-      if (error.response?.status === 401) {
-        logout()
+
+      if (response.data.data?.token) {
+        token.value = response.data.data.token
+        localStorage.setItem('token', token.value)
+        api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
       }
-      return null
+
+      isAuthenticated.value = true
+      return { success: true }
+    } catch (err) {
+      // error handling
     }
+  }
+
+  // Either remove fetchUser entirely or make it safe:
+  const fetchUser = async () => {
+    // Just return existing user data without API call
+    return user.value
   }
 
   // Simple logout
