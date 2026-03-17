@@ -119,13 +119,13 @@
               class="form-control with-currency"
               :class="{ 'is-invalid': errors.amount }"
               placeholder="500000"
-              min="50000"
-              step="10000"
+              min="10000"
               required
             />
+            <!--  step="10000" -->
           </div>
           <span class="input-hint"
-            >Kiasi cha chini: TZS 50,000 • Kiasi cha juu: TZS 50,000,000</span
+            >Kiasi cha chini: TZS 10,000 • Kiasi cha juu: TZS 50,000,000</span
           >
           <span v-if="errors.amount" class="error-text">
             <i class="fas fa-exclamation-circle"></i>
