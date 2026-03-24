@@ -133,6 +133,15 @@ const routes = [
         },
       },
       {
+        path: 'loans/:id/edit',
+        name: 'LoanForm',
+        component: LoanForm,
+        meta: {
+          title: 'Ombi la Mkopo',
+          icon: 'plus-circle',
+        },
+      },
+      {
         path: 'loans/pending',
         name: 'PendingLoans',
         component: PendingLoan,
