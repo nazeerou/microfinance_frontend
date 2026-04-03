@@ -214,6 +214,7 @@
             >
               <option value="NIDA">NIDA</option>
               <option value="ZANZIBAR_ID">Zanzibar ID</option>
+              <option value="VOTER_ID">Kitambulisho cha Kura</option>
               <option value="PASSPORT">Passport</option>
               <option value="DRIVERS">Leseni ya Udereva</option>
             </select>

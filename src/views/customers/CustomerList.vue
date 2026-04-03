@@ -5,7 +5,7 @@
       <div class="header-left">
         <h1>Wateja</h1>
         <p class="customer-count" v-if="!loading">
-          <!-- Jumla ya wateja: <strong>{{ pagination.total }}</strong> -->
+          Jumla ya wateja: <strong>{{ formatNumber(pagination.total) }}</strong>
         </p>
       </div>
       <div class="header-actions">
@@ -15,7 +15,7 @@
         </button>
         <button class="btn-import" @click="importCustomers">
           <i class="fas fa-upload"></i>
-          <span>Ingiza </span>
+          <span>Ingiza</span>
         </button>
         <router-link to="/customers/create" class="btn-primary">
           <i class="fas fa-user-plus"></i>
@@ -89,7 +89,7 @@
             <i class="fas fa-list"></i>
             Idadi kwa Ukurasa
           </label>
-          <select v-model="filters.perPage" @change="loadCustomers" class="form-control">
+          <select v-model="filters.perPage" @change="changePerPage" class="form-control">
             <option value="10">10</option>
             <option value="20">20</option>
             <option value="50">50</option>
@@ -130,7 +130,7 @@
           <i class="fas fa-users"></i>
         </div>
         <div class="stat-details">
-          <span class="stat-value">{{ statistics.total }}</span>
+          <span class="stat-value">{{ formatNumber(statistics.total) }}</span>
           <span class="stat-label">Jumla ya Wateja</span>
         </div>
       </div>
@@ -140,7 +140,7 @@
           <i class="fas fa-hand-holding-usd"></i>
         </div>
         <div class="stat-details">
-          <span class="stat-value">{{ statistics.withLoans }}</span>
+          <span class="stat-value">{{ formatNumber(statistics.withLoans) }}</span>
           <span class="stat-label">Wenye Mikopo</span>
         </div>
       </div>
@@ -150,7 +150,7 @@
           <i class="fas fa-ban"></i>
         </div>
         <div class="stat-details">
-          <span class="stat-value">{{ statistics.blacklisted }}</span>
+          <span class="stat-value">{{ formatNumber(statistics.blacklisted) }}</span>
           <span class="stat-label">Wamepigwa Marufuku</span>
         </div>
       </div>
@@ -222,8 +222,8 @@
                       :src="getCustomerProfilePhoto(customer)"
                       :alt="customer.first_name"
                       class="customer-avatar"
-                      @error="handleImageError"
                     />
+                    <!--  @error="handleImageError" -->
                     <span class="status-indicator" :class="customer.status"></span>
                   </div>
                   <div class="customer-info">
@@ -240,16 +240,21 @@
                     <i class="fas fa-phone-alt"></i>
                     {{ customer.phone }}
                   </span>
+                  <!-- <span v-if="customer.email" class="contact-item">
+                    <i class="fas fa-envelope"></i>
+                    {{ customer.email }}
+                  </span> -->
                 </div>
               </td>
               <td>
                 <div class="id-info">
-                  <span class="id-type">{{ customer.id_type || 'NIDA' }}</span>
+                  <span class="id-number">{{ customer.id_number }}</span>
+                  <span class="id-type">{{ getIdTypeText(customer.id_type) }}</span>
                 </div>
               </td>
               <td>
                 <div class="income-info">
-                  <span class="occupation">{{ customer.occupation }}</span>
+                  <span class="occupation">{{ customer.occupation || '-' }}</span>
                 </div>
               </td>
               <td>
@@ -264,7 +269,7 @@
                 </div>
               </td>
               <td>
-                <div class="action-dropdown" ref="actionDropdownRef">
+                <div class="action-dropdown" :ref="(el) => setActionRef(el, customer.id)">
                   <button class="action-menu-btn" @click.stop="toggleActionMenu(customer.id)">
                     <i class="fas fa-ellipsis-v"></i>
                   </button>
@@ -285,10 +290,10 @@
                       <i class="fas fa-edit"></i>
                       <span>Hariri</span>
                     </router-link>
-                    <button @click="viewCustomerLoans(customer)" class="action-menu-item">
+                    <!-- <button @click="viewCustomerLoans(customer)" class="action-menu-item">
                       <i class="fas fa-hand-holding-usd"></i>
                       <span>Mikopo yake</span>
-                    </button>
+                    </button> -->
                     <button
                       @click="toggleCustomerStatus(customer)"
                       class="action-menu-item"
@@ -308,7 +313,7 @@
               </td>
             </tr>
             <tr v-if="customers.length === 0">
-              <td colspan="9" class="text-center">
+              <td colspan="8" class="text-center">
                 <div class="empty-state-small">
                   <i class="fas fa-users"></i>
                   <p>Hakuna wateja waliopatikana</p>
@@ -324,7 +329,7 @@
         <div class="bulk-info">
           <i class="fas fa-check-circle"></i>
           <span
-            >Umechagua <strong>{{ selectedCustomers.length }}</strong> wateja</span
+            >Umechagua <strong>{{ formatNumber(selectedCustomers.length) }}</strong> wateja</span
           >
         </div>
         <div class="bulk-buttons">
@@ -348,36 +353,84 @@
       </div>
 
       <!-- Pagination -->
-      <div class="pagination" v-if="pagination.lastPage > 1">
+      <div class="pagination-section" v-if="pagination.lastPage > 1">
         <div class="pagination-info">
-          Showing {{ pagination.from }} - {{ pagination.to }} of {{ pagination.total }} entries
+          <i class="fas fa-info-circle"></i>
+          Inaonyesha <strong>{{ formatNumber(pagination.from) }}</strong> -
+          <strong>{{ formatNumber(pagination.to) }}</strong> kati ya
+          <strong>{{ formatNumber(pagination.total) }}</strong> wateja
         </div>
-        <div class="pagination-buttons">
-          <button
-            @click="changePage(pagination.currentPage - 1)"
-            :disabled="pagination.currentPage === 1"
-            class="pagination-btn"
-          >
-            <i class="fas fa-chevron-left"></i>
-          </button>
 
-          <button
-            v-for="page in paginationPages"
-            :key="page"
-            @click="changePage(page)"
-            class="pagination-btn"
-            :class="{ active: page === pagination.currentPage }"
-          >
-            {{ page }}
-          </button>
+        <div class="pagination-controls">
+          <div class="pagination-buttons">
+            <!-- First Page -->
+            <button
+              @click="changePage(1)"
+              :disabled="pagination.currentPage === 1"
+              class="pagination-btn"
+              title="Ukurasa wa Kwanza"
+            >
+              <i class="fas fa-angle-double-left"></i>
+            </button>
 
-          <button
-            @click="changePage(pagination.currentPage + 1)"
-            :disabled="pagination.currentPage === pagination.lastPage"
-            class="pagination-btn"
-          >
-            <i class="fas fa-chevron-right"></i>
-          </button>
+            <!-- Previous Page -->
+            <button
+              @click="changePage(pagination.currentPage - 1)"
+              :disabled="pagination.currentPage === 1"
+              class="pagination-btn"
+              title="Ukurasa Ulio Nyuma"
+            >
+              <i class="fas fa-chevron-left"></i>
+            </button>
+
+            <!-- Page Numbers -->
+            <button
+              v-for="page in paginationPages"
+              :key="page"
+              @click="changePage(page)"
+              class="pagination-btn"
+              :class="{ active: page === pagination.currentPage }"
+            >
+              {{ formatNumber(page) }}
+            </button>
+
+            <!-- Next Page -->
+            <button
+              @click="changePage(pagination.currentPage + 1)"
+              :disabled="pagination.currentPage === pagination.lastPage"
+              class="pagination-btn"
+              title="Ukurasa Unaofuata"
+            >
+              <i class="fas fa-chevron-right"></i>
+            </button>
+
+            <!-- Last Page -->
+            <button
+              @click="changePage(pagination.lastPage)"
+              :disabled="pagination.currentPage === pagination.lastPage"
+              class="pagination-btn"
+              title="Ukurasa wa Mwisho"
+            >
+              <i class="fas fa-angle-double-right"></i>
+            </button>
+          </div>
+
+          <!-- Page Size Selector -->
+          <div class="page-size-selector">
+            <label>Onyesha:</label>
+            <select v-model="filters.perPage" @change="changePerPage" class="per-page-select">
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Page Indicator -->
+        <div class="page-indicator">
+          Ukurasa <strong>{{ formatNumber(pagination.currentPage) }}</strong> kati ya
+          <strong>{{ formatNumber(pagination.lastPage) }}</strong>
         </div>
       </div>
     </div>
@@ -409,7 +462,7 @@
               </div>
               <div class="summary-content">
                 <span class="summary-label">Jumla ya Mikopo</span>
-                <span class="summary-value">{{ customerLoansSummary.total }}</span>
+                <span class="summary-value">{{ formatNumber(customerLoansSummary.total) }}</span>
               </div>
             </div>
             <div class="summary-card-mini active">
@@ -418,7 +471,7 @@
               </div>
               <div class="summary-content">
                 <span class="summary-label">Inayoendelea</span>
-                <span class="summary-value">{{ customerLoansSummary.active }}</span>
+                <span class="summary-value">{{ formatNumber(customerLoansSummary.active) }}</span>
               </div>
             </div>
             <div class="summary-card-mini completed">
@@ -427,7 +480,9 @@
               </div>
               <div class="summary-content">
                 <span class="summary-label">Imekamilika</span>
-                <span class="summary-value">{{ customerLoansSummary.completed }}</span>
+                <span class="summary-value">{{
+                  formatNumber(customerLoansSummary.completed)
+                }}</span>
               </div>
             </div>
             <div class="summary-card-mini defaulted">
@@ -436,7 +491,9 @@
               </div>
               <div class="summary-content">
                 <span class="summary-label">Imechelewa</span>
-                <span class="summary-value">{{ customerLoansSummary.defaulted }}</span>
+                <span class="summary-value">{{
+                  formatNumber(customerLoansSummary.defaulted)
+                }}</span>
               </div>
             </div>
           </div>
@@ -505,51 +562,30 @@
                   </div>
                 </div>
 
-                <!-- Payment Status -->
-                <div class="payment-status-section">
-                  <div class="status-header">
-                    <i class="fas fa-credit-card"></i>
-                    <span>Hali ya Malipo</span>
+                <!-- Payment Progress -->
+                <div class="payment-progress" v-if="loan.payment_progress !== undefined">
+                  <div class="progress-bar-mini">
+                    <div
+                      class="progress-fill-mini"
+                      :style="{ width: loan.payment_progress + '%' }"
+                      :class="{
+                        success: loan.payment_progress === 100,
+                        warning: loan.payment_progress > 0 && loan.payment_progress < 100,
+                        danger: loan.payment_progress === 0 && loan.balance > 0,
+                      }"
+                    ></div>
                   </div>
-                  <div class="payment-progress">
-                    <div class="progress-bar-mini">
-                      <div
-                        class="progress-fill-mini"
-                        :style="{ width: loan.payment_progress + '%' }"
-                        :class="{
-                          success: loan.payment_progress === 100,
-                          warning: loan.payment_progress > 0 && loan.payment_progress < 100,
-                          danger: loan.payment_progress === 0 && loan.balance > 0,
-                        }"
-                      ></div>
-                    </div>
-                    <span class="progress-text">{{ loan.payment_progress }}%</span>
-                  </div>
-                </div>
-
-                <!-- Payment Schedule Summary -->
-                <div class="payment-schedule-summary" v-if="loan.next_payment">
-                  <div class="next-payment">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>Malipo yajayo: {{ formatDate(loan.next_payment.due_date) }}</span>
-                  </div>
-                  <div class="payment-amount-mini">
-                    <span>{{ formatCurrency(loan.next_payment.amount) }}</span>
-                    <span class="status-dot" :class="loan.next_payment.status"></span>
-                  </div>
-                </div>
-
-                <!-- Overdue Warning -->
-                <div v-if="loan.overdue_count > 0" class="overdue-warning">
-                  <i class="fas fa-exclamation-circle"></i>
-                  <span>Imechelewa kwa awamu {{ loan.overdue_count }}</span>
+                  <span class="progress-text">{{ loan.payment_progress }}%</span>
                 </div>
               </div>
 
               <div class="loan-card-footer">
                 <div class="loan-terms">
-                  <span><i class="fas fa-clock"></i> {{ loan.duration_months }} miezi</span>
-                  <span><i class="fas fa-percent"></i> {{ loan.interest_rate }}%</span>
+                  <span
+                    ><i class="fas fa-clock"></i>
+                    {{ loan.duration_months || loan.term_months || '-' }} miezi</span
+                  >
+                  <span><i class="fas fa-percent"></i> {{ loan.interest_rate || '-' }}%</span>
                 </div>
                 <button class="btn-view-loan" @click.stop="viewLoanDetails(loan)">
                   <i class="fas fa-eye"></i>
@@ -639,7 +675,8 @@
         </div>
         <div class="modal-body">
           <p>
-            Una uhakika unataka kufuta wateja <strong>{{ selectedCustomers.length }}</strong
+            Una uhakika unataka kufuta wateja
+            <strong>{{ formatNumber(selectedCustomers.length) }}</strong
             >?
           </p>
           <div class="selected-list">
@@ -648,7 +685,7 @@
               <span>{{ getCustomerName(id) }}</span>
             </div>
             <div v-if="selectedCustomers.length > 5" class="more-items">
-              ... na wengine {{ selectedCustomers.length - 5 }}
+              ... na wengine {{ formatNumber(selectedCustomers.length - 5) }}
             </div>
           </div>
           <p class="warning-note">
@@ -681,14 +718,33 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCustomerStore } from '@/stores/customer'
+import { useLoanStore } from '@/stores/loan'
 import { formatCurrency, formatDate, formatTime } from '@/utils/formatters'
 import debounce from 'lodash/debounce'
 
 const router = useRouter()
 const customerStore = useCustomerStore()
+const loanStore = useLoanStore()
+
+// Helper function to format numbers
+const formatNumber = (num) => {
+  if (!num && num !== 0) return '0'
+  return new Intl.NumberFormat('sw-TZ').format(num)
+}
+
+// Helper function to get ID type text
+const getIdTypeText = (idType) => {
+  const types = {
+    NIDA: 'NIDA',
+    ZANZIBAR_ID: 'Zanzibar ID',
+    PASSPORT: 'Passport',
+    DRIVERS: 'Leseni',
+  }
+  return types[idType] || idType || '-'
+}
 
 const defaultAvatar = ref('/default-avatar.png')
 
@@ -698,17 +754,34 @@ const loading = ref(false)
 const error = ref(null)
 const selectedCustomers = ref([])
 const selectAll = ref(false)
-const showDeleteModal = ref(false)
 const showBulkDeleteModal = ref(false)
-const customerToDelete = ref(null)
-const deleteLoading = ref(false)
 const showToast = ref(false)
 const toastMessage = ref('')
 const toastType = ref('success')
 const activeActionMenu = ref(null)
 
-// Refs
-const actionDropdownRef = ref([])
+// Delete customer state
+const customerToDelete = ref(null)
+const showDeleteModal = ref(false)
+const deleteLoading = ref(false)
+
+// Loans modal state
+const showLoansModal = ref(false)
+const selectedCustomer = ref(null)
+const customerLoans = ref([])
+const customerLoansLoading = ref(false)
+const customerLoansSummary = ref({
+  total: 0,
+  active: 0,
+  completed: 0,
+  defaulted: 0,
+  total_amount: 0,
+  paid_amount: 0,
+  outstanding: 0,
+})
+
+// Refs storage
+const actionRefs = ref({})
 
 const filters = reactive({
   search: '',
@@ -763,6 +836,12 @@ const toastIcon = computed(() => {
 })
 
 // Methods
+const setActionRef = (el, id) => {
+  if (el) {
+    actionRefs.value[id] = el
+  }
+}
+
 const loadCustomers = async () => {
   loading.value = true
   error.value = null
@@ -779,64 +858,92 @@ const loadCustomers = async () => {
 
     const response = await customerStore.fetchCustomers(params)
 
-    console.log('API Response:', response) // Helpful for debugging
+    console.log('API Response:', response) // Debug log
 
-    // Check if response has the expected structure
+    // Handle different response structures
+    let responseData = null
+
     if (response && response.success && response.data) {
-      // The customers are in response.data.data
-      const responseData = response.data
+      responseData = response.data
+    } else if (response && response.data) {
+      responseData = response.data
+    } else {
+      responseData = response
+    }
 
-      // Set customers array
-      customers.value = responseData.data || []
+    // Extract customers data
+    if (responseData) {
+      // Check if data is paginated
+      if (responseData.data && Array.isArray(responseData.data)) {
+        customers.value = responseData.data
+      } else if (Array.isArray(responseData)) {
+        customers.value = responseData
+      } else {
+        customers.value = []
+      }
 
-      // Set pagination data from the nested structure
-      pagination.currentPage = responseData.current_page || 1
-      pagination.lastPage = responseData.last_page || 1
-      pagination.perPage = responseData.per_page || filters.perPage
+      // Set pagination data
+      pagination.currentPage =
+        responseData.current_page || responseData.currentPage || filters.page || 1
+      pagination.lastPage =
+        responseData.last_page || responseData.lastPage || responseData.lastPage || 1
+      pagination.perPage = responseData.per_page || responseData.perPage || filters.perPage || 10
       pagination.total = responseData.total || 0
       pagination.from = responseData.from || 0
       pagination.to = responseData.to || 0
 
-      console.log('Customers loaded:', customers.value)
+      // If pagination data is missing but we have customers, calculate manually
+      if (pagination.total === 0 && customers.value.length > 0) {
+        pagination.total = customers.value.length
+        pagination.lastPage = Math.ceil(pagination.total / pagination.perPage)
+        pagination.from = (pagination.currentPage - 1) * pagination.perPage + 1
+        pagination.to = Math.min(pagination.currentPage * pagination.perPage, pagination.total)
+      }
+
+      console.log('Pagination:', {
+        currentPage: pagination.currentPage,
+        lastPage: pagination.lastPage,
+        total: pagination.total,
+        from: pagination.from,
+        to: pagination.to,
+        customersCount: customers.value.length,
+      })
     } else {
-      // Fallback for different response structures
-      console.warn('Unexpected response structure:', response)
-      customers.value = response.data?.data || response.data || []
+      customers.value = []
     }
 
-    // Update statistics
     await loadStatistics()
   } catch (err) {
     console.error('Error loading customers:', err)
     error.value = err.response?.data?.message || 'Imeshindwa kupakia wateja. Tafadhali jaribu tena.'
+    showToastMessage(error.value, 'error')
   } finally {
     loading.value = false
   }
 }
 
-// Method to get customer profile photo
+const changePerPage = () => {
+  filters.page = 1
+  loadCustomers()
+}
+
 const getCustomerProfilePhoto = (customer) => {
   if (!customer) return defaultAvatar.value
-
-  // Use profile_photo_url if available (from API)
-  if (customer.profile_photo_url) {
-    return customer.profile_photo_url
-  }
-
-  // If profile_photo exists but no URL, construct it
+  if (customer.profile_photo_url) return customer.profile_photo_url
   if (customer.profile_photo) {
     // const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
     const baseUrl = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
-
     return `${baseUrl}/storage/${customer.profile_photo}`
   }
-
   return defaultAvatar.value
+}
+
+const handleImageError = (event) => {
+  event.target.src = defaultAvatar.value
 }
 
 const loadStatistics = async () => {
   try {
-    // Calculate statistics from the loaded customers
     const activeCount = customers.value.filter((c) => c.status === 'active').length
     const blacklistedCount = customers.value.filter((c) => c.status === 'blacklisted').length
     const withLoansCount = customers.value.filter((c) => (c.loans_count || 0) > 0).length
@@ -852,8 +959,6 @@ const loadStatistics = async () => {
       blacklisted: blacklistedCount,
       totalLoans: totalLoansAmount,
     }
-
-    console.log('Statistics updated:', statistics.value)
   } catch (err) {
     console.error('Error loading statistics:', err)
   }
@@ -863,6 +968,14 @@ const debouncedSearch = debounce(() => {
   filters.page = 1
   loadCustomers()
 }, 500)
+
+// Watch for search changes
+watch(
+  () => filters.search,
+  () => {
+    debouncedSearch()
+  },
+)
 
 const clearSearch = () => {
   filters.search = ''
@@ -901,6 +1014,18 @@ const getStatusText = (status) => {
     blacklisted: 'Amepigwa marufuku',
   }
   return statusMap[status] || status
+}
+
+const getLoanStatusText = (status) => {
+  const statusMap = {
+    pending: 'Inasubiri',
+    approved: 'Imeidhinishwa',
+    active: 'Inaendelea',
+    paid: 'Imelipwa',
+    defaulted: 'Imechelewa',
+    rejected: 'Imekataliwa',
+  }
+  return statusMap[status?.toLowerCase()] || status
 }
 
 const getCustomerName = (id) => {
@@ -946,13 +1071,71 @@ const clearSelection = () => {
   selectAll.value = false
 }
 
-// Action methods
-const viewLoans = (customer) => {
-  router.push(`/loans?customer_id=${customer.id}`)
-  showToastMessage(`Unaangalia mikopo ya ${customer.first_name} ${customer.last_name}`, 'info')
+// View Customer Loans
+const viewCustomerLoans = async (customer) => {
+  selectedCustomer.value = customer
+  showLoansModal.value = true
   closeActionMenu()
+  await loadCustomerLoans(customer.id)
 }
 
+const loadCustomerLoans = async (customerId) => {
+  customerLoansLoading.value = true
+  try {
+    const response = await loanStore.fetchCustomerLoans(customerId)
+
+    if (response && response.success) {
+      const loans = response.data || []
+      customerLoans.value = loans
+
+      // Calculate summary
+      let total = loans.length
+      let active = loans.filter((l) => l.status === 'active').length
+      let completed = loans.filter((l) => l.status === 'paid').length
+      let defaulted = loans.filter((l) => l.status === 'defaulted').length
+      let totalAmount = loans.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0)
+      let paidAmount = loans.reduce((sum, l) => sum + (parseFloat(l.paid_amount) || 0), 0)
+      let outstanding = totalAmount - paidAmount
+
+      customerLoansSummary.value = {
+        total,
+        active,
+        completed,
+        defaulted,
+        total_amount: totalAmount,
+        paid_amount: paidAmount,
+        outstanding,
+      }
+    } else {
+      customerLoans.value = []
+    }
+  } catch (error) {
+    console.error('Error loading customer loans:', error)
+    customerLoans.value = []
+    showToastMessage('Imeshindwa kupakia mikopo ya mteja', 'error')
+  } finally {
+    customerLoansLoading.value = false
+  }
+}
+
+const refreshCustomerLoans = () => {
+  if (selectedCustomer.value) {
+    loadCustomerLoans(selectedCustomer.value.id)
+  }
+}
+
+const closeLoansModal = () => {
+  showLoansModal.value = false
+  selectedCustomer.value = null
+  customerLoans.value = []
+}
+
+const viewLoanDetails = (loan) => {
+  closeLoansModal()
+  router.push(`/loans/${loan.id}`)
+}
+
+// Toggle customer status
 const toggleCustomerStatus = async (customer) => {
   const newStatus = customer.status === 'active' ? 'inactive' : 'active'
   const action = customer.status === 'active' ? 'kumzuia' : 'kumwezesha'
@@ -965,12 +1148,14 @@ const toggleCustomerStatus = async (customer) => {
       await loadStatistics()
       closeActionMenu()
     } catch (error) {
-      showToastMessage('Hitilafu imetokea. Tafadhali jaribu tena.', 'error')
+      const errorMessage =
+        error.response?.data?.message || 'Hitilafu imetokea. Tafadhali jaribu tena.'
+      showToastMessage(errorMessage, 'error')
     }
   }
 }
 
-// Delete methods
+// Delete customer
 const confirmDelete = (customer) => {
   customerToDelete.value = customer
   showDeleteModal.value = true
@@ -988,13 +1173,54 @@ const deleteCustomer = async () => {
   deleteLoading.value = true
 
   try {
-    await customerStore.deleteCustomer(customerToDelete.value.id)
-    showToastMessage('Mteja amefutwa kwa mafanikio', 'success')
-    closeDeleteModal()
-    await loadCustomers()
-    clearSelection()
+    const result = await customerStore.deleteCustomer(customerToDelete.value.id)
+
+    if (result && (result.success || result.status === 'success')) {
+      showToastMessage('Mteja amefutwa kwa mafanikio', 'success')
+      closeDeleteModal()
+      await loadCustomers()
+      clearSelection()
+    } else {
+      throw new Error(result?.message || 'Failed to delete customer')
+    }
   } catch (error) {
-    showToastMessage('Hitilafu imetokea wakati wa kufuta', 'error')
+    console.error('Delete error:', error)
+
+    let errorMessage = 'Hitilafu imetokea wakati wa kufuta'
+
+    if (error.response) {
+      const responseData = error.response.data
+
+      if (responseData.message) {
+        errorMessage = responseData.message
+      } else if (responseData.error) {
+        errorMessage = responseData.error
+      } else if (responseData.errors) {
+        const errors = responseData.errors
+        if (typeof errors === 'object') {
+          errorMessage = Object.values(errors).flat().join(', ')
+        } else {
+          errorMessage = errors
+        }
+      } else if (typeof responseData === 'string') {
+        errorMessage = responseData
+      }
+
+      if (error.response.status === 403) {
+        errorMessage = 'Hauna ruhusa ya kufuta mteja huyu'
+      } else if (error.response.status === 404) {
+        errorMessage = 'Mteja hakupatikana'
+      } else if (error.response.status === 409) {
+        errorMessage = 'Mteja hawezi kufutwa kwa sababu ana mikopo au dhamana inayoendelea'
+      }
+    } else if (error.request) {
+      errorMessage =
+        'Hakuna majibu kutoka kwa server. Tafadhali hakikisha una muunganiko wa intaneti.'
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+
+    showToastMessage(errorMessage, 'error')
   } finally {
     deleteLoading.value = false
   }
@@ -1002,37 +1228,50 @@ const deleteCustomer = async () => {
 
 // Bulk actions
 const bulkActivate = async () => {
-  if (selectedCustomers.value.length === 0) return
+  if (selectedCustomers.value.length === 0) {
+    showToastMessage('Tafadhali chagua wateja wa kuwasha', 'warning')
+    return
+  }
 
   try {
     await Promise.all(
       selectedCustomers.value.map((id) => customerStore.updateCustomerStatus(id, 'active')),
     )
-    showToastMessage(`Wateja ${selectedCustomers.value.length} wamewashwa`, 'success')
+    showToastMessage(`Wateja ${selectedCustomers.value.length} wamewashwa kwa mafanikio`, 'success')
     await loadCustomers()
     clearSelection()
   } catch (error) {
-    showToastMessage('Hitilafu imetokea', 'error')
+    const errorMessage =
+      error.response?.data?.message || 'Hitilafu imetokea wakati wa kuwasha wateja'
+    showToastMessage(errorMessage, 'error')
   }
 }
 
 const bulkDeactivate = async () => {
-  if (selectedCustomers.value.length === 0) return
+  if (selectedCustomers.value.length === 0) {
+    showToastMessage('Tafadhali chagua wateja wa kuzima', 'warning')
+    return
+  }
 
   try {
     await Promise.all(
       selectedCustomers.value.map((id) => customerStore.updateCustomerStatus(id, 'inactive')),
     )
-    showToastMessage(`Wateja ${selectedCustomers.value.length} wamezimwa`, 'success')
+    showToastMessage(`Wateja ${selectedCustomers.value.length} wamezimwa kwa mafanikio`, 'success')
     await loadCustomers()
     clearSelection()
   } catch (error) {
-    showToastMessage('Hitilafu imetokea', 'error')
+    const errorMessage =
+      error.response?.data?.message || 'Hitilafu imetokea wakati wa kuzima wateja'
+    showToastMessage(errorMessage, 'error')
   }
 }
 
 const confirmBulkDelete = () => {
-  if (selectedCustomers.value.length === 0) return
+  if (selectedCustomers.value.length === 0) {
+    showToastMessage('Tafadhali chagua wateja wa kufuta', 'warning')
+    return
+  }
   showBulkDeleteModal.value = true
 }
 
@@ -1046,13 +1285,31 @@ const bulkDelete = async () => {
   deleteLoading.value = true
 
   try {
-    await Promise.all(selectedCustomers.value.map((id) => customerStore.deleteCustomer(id)))
-    showToastMessage(`Wateja ${selectedCustomers.value.length} wamefutwa`, 'success')
+    const results = await Promise.allSettled(
+      selectedCustomers.value.map((id) => customerStore.deleteCustomer(id)),
+    )
+
+    const successful = results.filter(
+      (r) => r.status === 'fulfilled' && (r.value?.success || r.value?.status === 'success'),
+    ).length
+    const failed = results.length - successful
+
+    if (successful > 0) {
+      showToastMessage(
+        `${successful} wateja wamefutwa kwa mafanikio${failed > 0 ? `, ${failed} wameshindwa` : ''}`,
+        successful > 0 ? 'success' : 'error',
+      )
+    } else {
+      showToastMessage('Imeshindwa kufuta wateja waliopangwa', 'error')
+    }
+
     closeBulkDeleteModal()
     await loadCustomers()
     clearSelection()
   } catch (error) {
-    showToastMessage('Hitilafu imetokea', 'error')
+    const errorMessage =
+      error.response?.data?.message || 'Hitilafu imetokea wakati wa kufuta wateja'
+    showToastMessage(errorMessage, 'error')
   } finally {
     deleteLoading.value = false
   }
@@ -1062,10 +1319,15 @@ const bulkDelete = async () => {
 const exportCustomers = async () => {
   try {
     showToastMessage('Wateja wanapakuliwa...', 'info')
-    await customerStore.exportCustomers(filters)
-    showToastMessage('Wateja wamepakuliwa kwa mafanikio', 'success')
+    if (customerStore.exportCustomers) {
+      await customerStore.exportCustomers(filters)
+      showToastMessage('Wateja wamepakuliwa kwa mafanikio', 'success')
+    } else {
+      showToastMessage('Kipengele cha kuweka nje hakipo', 'warning')
+    }
   } catch (error) {
-    showToastMessage('Hitilafu wakati wa kupakua', 'error')
+    const errorMessage = error.response?.data?.message || 'Hitilafu wakati wa kupakua'
+    showToastMessage(errorMessage, 'error')
   }
 }
 
@@ -1077,11 +1339,16 @@ const importCustomers = () => {
     const file = e.target.files[0]
     if (file) {
       try {
-        await customerStore.importCustomers(file)
-        showToastMessage('Wateja wameingizwa kwa mafanikio', 'success')
-        await loadCustomers()
+        if (customerStore.importCustomers) {
+          await customerStore.importCustomers(file)
+          showToastMessage('Wateja wameingizwa kwa mafanikio', 'success')
+          await loadCustomers()
+        } else {
+          showToastMessage('Kipengele cha kuingiza nje hakipo', 'warning')
+        }
       } catch (error) {
-        showToastMessage('Hitilafu wakati wa kuingiza', 'error')
+        const errorMessage = error.response?.data?.message || 'Hitilafu wakati wa kuingiza'
+        showToastMessage(errorMessage, 'error')
       }
     }
   }
@@ -1107,11 +1374,444 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  debouncedSearch.cancel()
 })
 </script>
 
 <style scoped>
-/* Add all the styles from the previous version here */
+/* All existing styles remain exactly the same as in your original component */
+/* Include all the CSS from your original component here - no changes needed */
+
+/* Additional styles for loans modal that might be missing */
+.loans-modal {
+  max-width: 800px !important;
+  width: 90%;
+}
+
+.loans-modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.loans-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.summary-card-mini {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #eef2f6;
+}
+
+.summary-card-mini .summary-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.summary-card-mini.total .summary-icon {
+  background: #3498db;
+  color: white;
+}
+
+.summary-card-mini.active .summary-icon {
+  background: #27ae60;
+  color: white;
+}
+
+.summary-card-mini.completed .summary-icon {
+  background: #9b59b6;
+  color: white;
+}
+
+.summary-card-mini.defaulted .summary-icon {
+  background: #e74c3c;
+  color: white;
+}
+
+.summary-content {
+  flex: 1;
+}
+
+.summary-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 3px;
+}
+
+.summary-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.amount-summary {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.amount-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.amount-label {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.amount-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.amount-value.success {
+  color: #27ae60;
+}
+
+.amount-value.warning {
+  color: #f39c12;
+}
+
+.loans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 15px;
+}
+
+.loan-card {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 15px;
+  border: 1px solid #eef2f6;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.loan-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.loan-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.loan-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loan-number {
+  font-weight: 600;
+  color: #3498db;
+}
+
+.loan-status-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.loan-status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.loan-status-badge.paid {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.loan-status-badge.defaulted {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.loan-date {
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.loan-amounts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.amount-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.amount-row .label {
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.amount-row .value {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.amount-row .value.success {
+  color: #27ae60;
+}
+
+.amount-row .value.text-danger {
+  color: #e74c3c;
+}
+
+.payment-status-section {
+  margin-bottom: 10px;
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.payment-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-bar-mini {
+  flex: 1;
+  height: 6px;
+  background: #eef2f6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill-mini {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.progress-fill-mini.success {
+  background: #27ae60;
+}
+
+.progress-fill-mini.warning {
+  background: #f39c12;
+}
+
+.progress-fill-mini.danger {
+  background: #e74c3c;
+}
+
+.progress-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.payment-schedule-summary {
+  background: white;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.next-payment {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  color: #666;
+}
+
+.next-payment i {
+  color: #f39c12;
+}
+
+.payment-amount-mini {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.payment-amount-mini span:first-child {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.8rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.paid {
+  background: #27ae60;
+}
+
+.status-dot.pending {
+  background: #f39c12;
+}
+
+.status-dot.overdue {
+  background: #e74c3c;
+}
+
+.overdue-warning {
+  background: #fee;
+  padding: 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  color: #e74c3c;
+  margin-top: 8px;
+}
+
+.loan-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f6;
+}
+
+.loan-terms {
+  display: flex;
+  gap: 10px;
+  font-size: 0.7rem;
+  color: #666;
+}
+
+.loan-terms i {
+  margin-right: 3px;
+}
+
+.btn-view-loan {
+  padding: 5px 12px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-view-loan:hover {
+  background: #2980b9;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
+.empty-state i {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.modal-header-left i {
+  font-size: 1.2rem;
+  color: #3498db;
+}
+
+.modal-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-refresh {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: #666;
+  padding: 5px;
+}
+
+.btn-refresh i.rotating {
+  animation: spin 1s linear infinite;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: #f8fafc;
+  color: #666;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.btn-secondary:hover {
+  background: #eef2f6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .loans-summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .loans-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .amount-summary {
+    flex-direction: column;
+  }
+}
 
 /* Action Dropdown */
 .action-dropdown {
@@ -1635,12 +2335,18 @@ onUnmounted(() => {
   position: relative;
 }
 
+/* Simple, clean avatar styling - no animation */
 .customer-avatar {
   width: 45px;
   height: 45px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #eef2f6;
+  transition: transform 0.2s ease;
+}
+
+.customer-avatar:hover {
+  transform: scale(1.05);
 }
 
 .status-indicator {
@@ -1902,50 +2608,64 @@ onUnmounted(() => {
 }
 
 /* Pagination */
-.pagination {
-  margin-top: 25px;
+.pagination-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eef2f6;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 15px;
 }
 
 .pagination-info {
-  color: #666;
   font-size: 0.9rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
 .pagination-buttons {
   display: flex;
-  gap: 5px;
+  gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .pagination-btn {
-  min-width: 35px;
-  height: 35px;
-  border-radius: 6px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
   border: 1px solid #eef2f6;
   background: white;
-  color: #666;
+  border-radius: 6px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s;
+  color: #666;
+  font-size: 0.9rem;
 }
 
 .pagination-btn:hover:not(:disabled) {
   background: #f8fafc;
-  color: #3498db;
   border-color: #3498db;
+  color: #3498db;
 }
 
 .pagination-btn.active {
-  background: #3498db;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  border-color: #2980b9;
   color: white;
-  border-color: #3498db;
 }
 
 .pagination-btn:disabled {
@@ -1953,6 +2673,51 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
+.pagination-dots {
+  padding: 0 5px;
+  color: #999;
+}
+
+.page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-size-selector label {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.per-page-select {
+  padding: 8px 12px;
+  border: 1px solid #eef2f6;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.page-indicator {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #999;
+}
+
+@media (max-width: 768px) {
+  .pagination-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-buttons {
+    justify-content: center;
+  }
+
+  .page-size-selector {
+    justify-content: center;
+  }
+}
 /* Modal Styles */
 .modal-overlay {
   position: fixed;

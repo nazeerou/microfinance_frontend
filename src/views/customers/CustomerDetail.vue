@@ -87,21 +87,22 @@
             <div class="profile-header">
               <div class="profile-avatar-wrapper">
                 <img
-                  :src="customer.profile_photo || customer.avatar || '/default-avatar.png'"
+                  :src="getAvatarUrl()"
                   :alt="customer.first_name"
                   class="profile-avatar"
+                  @error="handleImageError"
                 />
                 <span class="status-indicator" :class="customer.status"></span>
               </div>
               <div class="profile-name">
                 <h2>{{ customer.first_name }} {{ customer.last_name }}</h2>
-                <p>{{ customer.occupation }}</p>
+                <p>{{ customer.occupation || 'Mteja' }}</p>
               </div>
             </div>
 
             <div class="profile-stats">
               <div class="stat-item">
-                <span class="stat-value">{{ customer.loans_count || 0 }}</span>
+                <span class="stat-value">{{ customer.loans?.length || 0 }}</span>
                 <span class="stat-label">Mikopo</span>
               </div>
               <div class="stat-divider"></div>
@@ -111,8 +112,8 @@
               </div>
               <div class="stat-divider"></div>
               <div class="stat-item">
-                <span class="stat-value">{{ customer.guarantors_count || 0 }}</span>
-                <span class="stat-label">Wadhamini</span>
+                <span class="stat-value">{{ customer.collaterals?.length || 0 }}</span>
+                <span class="stat-label">Dhamana</span>
               </div>
             </div>
           </div>
@@ -130,21 +131,15 @@
               </div>
               <div class="info-row">
                 <span class="info-label">Namba ya Kitambulisho:</span>
-                <span class="info-value">{{ customer.id_number }}</span>
+                <span class="info-value">{{ customer.id_number || '-' }}</span>
               </div>
               <div class="info-row">
                 <span class="info-label">Aina ya Kitambulisho:</span>
-                <span class="info-value">{{ customer.id_type || 'NIDA' }}</span>
+                <span class="info-value">{{ getIdTypeText(customer.id_type) }}</span>
               </div>
               <div class="info-row">
                 <span class="info-label">Tarehe ya Kujiunga:</span>
                 <span class="info-value">{{ formatDate(customer.created_at) }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Marejesho ya Mwisho:</span>
-                <span class="info-value">{{
-                  customer.updated_at ? formatDate(customer.updated_at) : 'Hajabadilishwa'
-                }}</span>
               </div>
             </div>
           </div>
@@ -161,8 +156,13 @@
                   <i class="fas fa-phone-alt"></i>
                   Simu:
                 </span>
-                <span class="info-value">{{ customer.phone }}</span>
-                <button class="action-icon" @click="callCustomer" title="Piga simu">
+                <span class="info-value">{{ customer.phone || '-' }}</span>
+                <button
+                  v-if="customer.phone"
+                  class="action-icon"
+                  @click="callCustomer"
+                  title="Piga simu"
+                >
                   <i class="fas fa-phone"></i>
                 </button>
               </div>
@@ -181,36 +181,39 @@
                   <i class="fas fa-map-marker-alt"></i>
                   Anwani:
                 </span>
-                <span class="info-value">{{ customer.address }}</span>
+                <span class="info-value">{{ customer.address || '-' }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Right Column - Employment, Loans, Guarantors -->
+        <!-- Right Column - Employment & Loans -->
         <div class="right-column">
           <!-- Employment Card -->
-          <div class="info-card">
+          <div class="info-card" v-if="customer.occupation || customer.monthly_income">
             <div class="card-header">
               <i class="fas fa-briefcase"></i>
               <h3>Taarifa za Kazi</h3>
             </div>
             <div class="info-grid">
-              <div class="info-row">
+              <div class="info-row" v-if="customer.occupation">
                 <span class="info-label">Kazi:</span>
                 <span class="info-value">{{ customer.occupation }}</span>
               </div>
-              <div class="info-row">
+              <div class="info-row" v-if="customer.monthly_income">
                 <span class="info-label">Kipato cha Mwezi:</span>
                 <span class="info-value highlight">{{
-                  formatCurrency(customer.monthly_income)
+                  formatCurrency(parseFloat(customer.monthly_income))
                 }}</span>
               </div>
               <div class="info-row" v-if="customer.employer">
                 <span class="info-label">Mwajiri:</span>
                 <span class="info-value">{{ customer.employer }}</span>
               </div>
-              <div class="info-row" v-if="customer.employment_years">
+              <div
+                class="info-row"
+                v-if="customer.employment_years && customer.employment_years > 0"
+              >
                 <span class="info-label">Miaka ya Uzoefu:</span>
                 <span class="info-value">{{ customer.employment_years }} miaka</span>
               </div>
@@ -222,17 +225,13 @@
             <div class="card-header">
               <i class="fas fa-hand-holding-usd"></i>
               <h3>Mikopo yake</h3>
-              <router-link :to="`/loans/create?customer_id=${customer.id}`" class="btn-add">
-                <i class="fas fa-plus"></i>
-                <span>Ongeza Mkopo</span>
-              </router-link>
             </div>
 
             <div v-if="customer.loans && customer.loans.length > 0" class="loans-list">
               <div v-for="loan in customer.loans" :key="loan.id" class="loan-item">
                 <div class="loan-header">
                   <span class="loan-number">#{{ loan.loan_number }}</span>
-                  <span class="loan-status" :class="loan.status">{{
+                  <span class="loan-status" :class="loan.status.toLowerCase()">{{
                     getLoanStatusText(loan.status)
                   }}</span>
                 </div>
@@ -259,69 +258,16 @@
                     <i class="fas fa-eye"></i>
                     Angalia
                   </router-link>
-                  <router-link
-                    :to="`/payments/create?loan_id=${loan.id}`"
-                    class="btn-small btn-success"
-                  >
-                    <i class="fas fa-money-bill"></i>
-                    Rekodi Malipo
-                  </router-link>
                 </div>
               </div>
             </div>
             <div v-else class="empty-state-small">
               <i class="fas fa-hand-holding-usd"></i>
               <p>Hajawahi kupata mkopo</p>
-              <router-link
-                :to="`/loans/create?customer_id=${customer.id}`"
-                class="btn-primary btn-small"
-              >
+              <!-- <router-link :to="`/loans/create`" class="btn-primary btn-small">
                 <i class="fas fa-plus"></i>
                 Toa Mkopo
-              </router-link>
-            </div>
-          </div>
-
-          <!-- Guarantors Card -->
-          <div class="info-card">
-            <div class="card-header">
-              <i class="fas fa-users"></i>
-              <h3>Wadhamini</h3>
-              <button @click="showAddGuarantor = true" class="btn-add">
-                <i class="fas fa-plus"></i>
-                <span>Ongeza Mdhamini</span>
-              </button>
-            </div>
-
-            <div
-              v-if="customer.guarantors && customer.guarantors.length > 0"
-              class="guarantors-list"
-            >
-              <div
-                v-for="guarantor in customer.guarantors"
-                :key="guarantor.id"
-                class="guarantor-item"
-              >
-                <div class="guarantor-avatar">
-                  <img :src="guarantor.photo || '/default-avatar.png'" :alt="guarantor.name" />
-                </div>
-                <div class="guarantor-info">
-                  <span class="guarantor-name">{{ guarantor.name }}</span>
-                  <span class="guarantor-relation">{{ guarantor.relationship }}</span>
-                  <span class="guarantor-phone">{{ guarantor.phone }}</span>
-                </div>
-                <button @click="viewGuarantor(guarantor)" class="btn-icon-small" title="Angalia">
-                  <i class="fas fa-eye"></i>
-                </button>
-              </div>
-            </div>
-            <div v-else class="empty-state-small">
-              <i class="fas fa-users"></i>
-              <p>Hakuna wadhamini</p>
-              <button @click="showAddGuarantor = true" class="btn-primary btn-small">
-                <i class="fas fa-plus"></i>
-                Ongeza Mdhamini
-              </button>
+              </router-link> -->
             </div>
           </div>
 
@@ -330,10 +276,10 @@
             <div class="card-header">
               <i class="fas fa-gem"></i>
               <h3>Dhamana</h3>
-              <button @click="showAddCollateral = true" class="btn-add">
+              <!-- <button @click="showAddCollateral = true" class="btn-add">
                 <i class="fas fa-plus"></i>
                 <span>Ongeza Dhamana</span>
-              </button>
+              </button> -->
             </div>
 
             <div
@@ -365,10 +311,10 @@
             <div v-else class="empty-state-small">
               <i class="fas fa-gem"></i>
               <p>Hakuna dhamana</p>
-              <button @click="showAddCollateral = true" class="btn-primary btn-small">
+              <!-- <button @click="showAddCollateral = true" class="btn-primary btn-small">
                 <i class="fas fa-plus"></i>
                 Ongeza Dhamana
-              </button>
+              </button> -->
             </div>
           </div>
         </div>
@@ -413,33 +359,12 @@
             Ghairi
           </button>
           <button @click="deleteCustomer" class="btn-danger" :disabled="deleteLoading">
-            <span v-if="deleteLoading" class="spinner"></span>
+            <span v-if="deleteLoading" class="spinner-small"></span>
             <span v-else>
               <i class="fas fa-trash-alt"></i>
               Futa Mteja
             </span>
           </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add Guarantor Modal -->
-    <div v-if="showAddGuarantor" class="modal-overlay" @click="showAddGuarantor = false">
-      <div class="modal-content large-modal" @click.stop>
-        <div class="modal-header">
-          <h3>Ongeza Mdhamini</h3>
-          <button class="close-btn" @click="showAddGuarantor = false">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <p class="text-center text-muted">
-            <i class="fas fa-info-circle"></i>
-            Kipengele hiki kitaongezwa hivi karibuni
-          </p>
-        </div>
-        <div class="modal-footer">
-          <button @click="showAddGuarantor = false" class="btn-primary">Sawa</button>
         </div>
       </div>
     </div>
@@ -476,83 +401,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import axios from 'axios'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 
 const route = useRoute()
 const router = useRouter()
-
-// Dummy customer data
-const dummyCustomers = [
-  {
-    id: 1,
-    customer_number: 'CUST-2024-0001',
-    first_name: 'Juma',
-    last_name: 'Mohamed',
-    phone: '0712345678',
-    email: 'juma.mohamed@email.com',
-    id_number: '1980010112345678',
-    id_type: 'NIDA',
-    address: 'Dar es Salaam, Kinondoni, Mikocheni',
-    occupation: 'Mfanyabiashara',
-    monthly_income: 1500000,
-    employer: 'Juma Enterprises',
-    employment_years: 5,
-    profile_photo: 'https://randomuser.me/api/portraits/men/1.jpg',
-    status: 'active',
-    loans_count: 2,
-    total_loans: 5000000,
-    guarantors_count: 2,
-    notes:
-      'Mteja mzuri, analipa kwa wakati. Anahitaji mkopo zaidi kwa ajili ya kupanua biashara yake.',
-    created_at: '2024-01-15T09:30:00Z',
-    updated_at: '2024-06-20T14:30:00Z',
-    loans: [
-      {
-        id: 101,
-        loan_number: 'LOAN-2024-0001',
-        amount: 3000000,
-        balance: 1500000,
-        status: 'active',
-        start_date: '2024-02-01',
-        end_date: '2025-02-01',
-      },
-      {
-        id: 102,
-        loan_number: 'LOAN-2024-0002',
-        amount: 2000000,
-        balance: 0,
-        status: 'paid',
-        start_date: '2024-01-15',
-        end_date: '2024-07-15',
-      },
-    ],
-    guarantors: [
-      {
-        id: 201,
-        name: 'Salim Juma',
-        relationship: 'Kaka',
-        phone: '0789123456',
-        photo: 'https://randomuser.me/api/portraits/men/2.jpg',
-      },
-      {
-        id: 202,
-        name: 'Amina Mohamed',
-        relationship: 'Mke',
-        phone: '0765456789',
-        photo: 'https://randomuser.me/api/portraits/women/2.jpg',
-      },
-    ],
-    collaterals: [
-      {
-        id: 301,
-        name: 'Shamba Darajani',
-        type: 'land',
-        estimated_value: 15000000,
-        status: 'active',
-      },
-    ],
-  },
-]
 
 // State
 const customer = ref(null)
@@ -560,7 +413,6 @@ const loading = ref(false)
 const error = ref(null)
 const showActionMenu = ref(false)
 const showDeleteModal = ref(false)
-const showAddGuarantor = ref(false)
 const showAddCollateral = ref(false)
 const deleteLoading = ref(false)
 const showToast = ref(false)
@@ -569,6 +421,8 @@ const toastType = ref('success')
 
 // Refs
 const actionDropdownRef = ref(null)
+// const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+const baseUrl = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // Computed
 const getStatusIcon = computed(() => {
@@ -584,28 +438,81 @@ const toastIcon = computed(() => {
   return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
 })
 
+// Helper methods
+const getIdTypeText = (idType) => {
+  const types = {
+    NIDA: 'NIDA',
+    ZANZIBAR_ID: 'Zanzibar ID',
+    PASSPORT: 'Passport',
+    DRIVERS: 'Leseni ya Udereva',
+  }
+  return types[idType] || idType || 'NIDA'
+}
+
 // Methods
 const loadCustomer = async () => {
-  const customerId = parseInt(route.params.id)
+  const customerId = route.params.id
 
   loading.value = true
   error.value = null
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    const response = await axios.get(`${baseUrl}/customers/${customerId}`)
 
-    const found = dummyCustomers.find((c) => c.id === customerId)
-    if (found) {
-      customer.value = found
+    console.log('Customer API Response:', response.data)
+
+    // Handle different response structures
+    let customerData = null
+
+    if (response.data.data && response.data.data.customer) {
+      customerData = response.data.data.customer
+    } else if (response.data.data && response.data.data.id) {
+      customerData = response.data.data
+    } else if (response.data.customer) {
+      customerData = response.data.customer
+    } else if (response.data.id) {
+      customerData = response.data
+    } else if (response.data.success && response.data.data) {
+      customerData = response.data.data
+    }
+
+    if (customerData) {
+      customer.value = customerData
+      console.log('Customer loaded:', customer.value)
     } else {
-      error.value = 'Mteja hakupatikana'
+      error.value = response.data.message || 'Mteja hakupatikana'
     }
   } catch (err) {
     console.error('Error loading customer:', err)
-    error.value = 'Imeshindwa kupakia taarifa za mteja. Tafadhali jaribu tena.'
+    if (err.response?.status === 404) {
+      error.value = 'Mteja hakupatikana'
+    } else if (err.response?.status === 401) {
+      error.value = 'Hauna ruhusa ya kuona taarifa hizi'
+    } else {
+      error.value =
+        err.response?.data?.message || 'Imeshindwa kupakia taarifa za mteja. Tafadhali jaribu tena.'
+    }
   } finally {
     loading.value = false
   }
+}
+
+const getAvatarUrl = () => {
+  // Use profile_photo_url if available, otherwise profile_photo
+  const photoUrl = customer.value?.profile_photo_url || customer.value?.profile_photo
+
+  if (photoUrl) {
+    if (photoUrl.startsWith('http')) {
+      return photoUrl
+    }
+    return `${baseUrl}/storage/${photoUrl}`
+  }
+
+  return `https://ui-avatars.com/api/?name=${customer.value?.first_name}+${customer.value?.last_name}&background=3498db&color=fff&length=2`
+}
+
+const handleImageError = (event) => {
+  event.target.src = `https://ui-avatars.com/api/?name=${customer.value?.first_name}+${customer.value?.last_name}&background=3498db&color=fff&length=2`
 }
 
 const getStatusText = (status) => {
@@ -626,7 +533,7 @@ const getLoanStatusText = (status) => {
     defaulted: 'Imechelewa',
     rejected: 'Imekataliwa',
   }
-  return statusMap[status] || status
+  return statusMap[status.toLowerCase()] || status
 }
 
 const getCollateralIcon = (type) => {
@@ -679,9 +586,18 @@ const toggleStatus = async () => {
   const action = customer.value.status === 'active' ? 'kumzuia' : 'kumwezesha'
 
   if (confirm(`Una uhakika unataka ${action} mteja huyu?`)) {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    customer.value.status = newStatus
-    showToastMessage(`Mteja ame${action}wa kwa mafanikio`, 'success')
+    try {
+      const response = await axios.put(`${baseUrl}/customers/${customer.value.id}/status`, {
+        status: newStatus,
+      })
+
+      if (response.data.success || response.data.status === 'success') {
+        customer.value.status = newStatus
+        showToastMessage(`Mteja ame${action}wa kwa mafanikio`, 'success')
+      }
+    } catch (err) {
+      showToastMessage('Imeshindwa kubadilisha hali ya mteja', 'error')
+    }
     closeActionMenu()
   }
 }
@@ -699,20 +615,27 @@ const closeDeleteModal = () => {
 const deleteCustomer = async () => {
   deleteLoading.value = true
 
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  try {
+    const response = await axios.delete(`${baseUrl}/customers/${customer.value.id}`)
 
-  showToastMessage('Mteja amefutwa kwa mafanikio', 'success')
+    if (response.data.success || response.data.status === 'success') {
+      showToastMessage('Mteja amefutwa kwa mafanikio', 'success')
 
-  setTimeout(() => {
-    router.push('/customers')
-  }, 1500)
+      setTimeout(() => {
+        router.push('/customers')
+      }, 1500)
+    } else {
+      showToastMessage(response.data.message || 'Imeshindwa kufuta mteja', 'error')
+    }
+  } catch (err) {
+    showToastMessage('Imeshindwa kufuta mteja. Tafadhali jaribu tena.', 'error')
+  } finally {
+    deleteLoading.value = false
+    closeDeleteModal()
+  }
 }
 
 // View related items
-const viewGuarantor = (guarantor) => {
-  showToastMessage(`Taarifa za ${guarantor.name}`, 'info')
-}
-
 const viewCollateral = (collateral) => {
   showToastMessage(`Taarifa za ${collateral.name}`, 'info')
 }
@@ -740,6 +663,26 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Add spinner-small for delete button */
+.spinner-small {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* All other styles remain the same as in your original component */
+/* Include all the CSS from your original component here */
+.customer-detail-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
 .customer-detail-container {
   padding: 20px;
   max-width: 1400px;

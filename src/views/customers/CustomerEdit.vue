@@ -56,7 +56,7 @@
           <h4>Tafadhali sahihisha makosa yafuatayo:</h4>
           <ul>
             <li v-for="(error, field) in errors" :key="field">
-              {{ error[0] }}
+              {{ Array.isArray(error) ? error[0] : error }}
             </li>
           </ul>
         </div>
@@ -120,7 +120,7 @@
               <input
                 type="text"
                 id="customer_number"
-                v-model="form.customer_number"
+                :value="form.customer_number"
                 class="form-control"
                 readonly
                 disabled
@@ -144,7 +144,7 @@
               />
               <span v-if="errors.first_name" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.first_name }}
+                {{ errors.first_name[0] }}
               </span>
             </div>
 
@@ -165,7 +165,7 @@
               />
               <span v-if="errors.last_name" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.last_name }}
+                {{ errors.last_name[0] }}
               </span>
             </div>
 
@@ -187,7 +187,7 @@
               <span class="input-hint">Weka namba kuanzia 0 au +255</span>
               <span v-if="errors.phone" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.phone }}
+                {{ errors.phone[0] }}
               </span>
             </div>
 
@@ -207,7 +207,7 @@
               />
               <span v-if="errors.email" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.email }}
+                {{ errors.email[0] }}
               </span>
             </div>
 
@@ -229,7 +229,7 @@
               <span class="input-hint">Namba ya NIDA au Zanzibar ID</span>
               <span v-if="errors.id_number" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.id_number }}
+                {{ errors.id_number[0] }}
               </span>
             </div>
 
@@ -248,12 +248,13 @@
               >
                 <option value="NIDA">NIDA</option>
                 <option value="ZANZIBAR_ID">Zanzibar ID</option>
+                <option value="VOTER_ID">Kitambulisho cha Kura</option>
                 <option value="PASSPORT">Passport</option>
                 <option value="DRIVERS">Leseni ya Udereva</option>
               </select>
               <span v-if="errors.id_type" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.id_type }}
+                {{ errors.id_type[0] }}
               </span>
             </div>
 
@@ -274,7 +275,7 @@
               ></textarea>
               <span v-if="errors.address" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.address }}
+                {{ errors.address[0] }}
               </span>
             </div>
           </div>
@@ -310,7 +311,7 @@
               />
               <span v-if="errors.occupation" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.occupation }}
+                {{ errors.occupation[0] }}
               </span>
             </div>
 
@@ -336,7 +337,7 @@
               </div>
               <span v-if="errors.monthly_income" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.monthly_income }}
+                {{ errors.monthly_income[0] }}
               </span>
             </div>
 
@@ -356,7 +357,7 @@
               />
               <span v-if="errors.employer" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.employer }}
+                {{ errors.employer[0] }}
               </span>
             </div>
 
@@ -378,7 +379,7 @@
               />
               <span v-if="errors.employment_years" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.employment_years }}
+                {{ errors.employment_years[0] }}
               </span>
             </div>
           </div>
@@ -417,8 +418,8 @@
                     <i class="fas fa-times"></i>
                   </button>
                 </div>
-                <div v-else-if="currentPhoto" class="photo-preview">
-                  <img :src="currentPhoto" alt="Current Profile" />
+                <div v-else-if="currentPhotoUrl" class="photo-preview">
+                  <img :src="currentPhotoUrl" alt="Current Profile" />
                   <button
                     type="button"
                     class="btn-remove-photo"
@@ -623,9 +624,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { formatCurrency } from '@/utils/formatters'
+import axios from 'axios'
 
 const route = useRoute()
 const router = useRouter()
@@ -638,53 +639,12 @@ const props = defineProps({
   },
 })
 
-// Dummy customer data
-const dummyCustomers = [
-  {
-    id: 1,
-    customer_number: 'CUST-2024-0001',
-    first_name: 'Juma',
-    last_name: 'Mohamed',
-    phone: '0712345678',
-    email: 'juma.mohamed@email.com',
-    id_number: '1980010112345678',
-    id_type: 'NIDA',
-    address: 'Dar es Salaam, Kinondoni, Mikocheni',
-    occupation: 'Mfanyabiashara',
-    monthly_income: 1500000,
-    employer: 'Juma Enterprises',
-    employment_years: 5,
-    profile_photo: 'https://randomuser.me/api/portraits/men/1.jpg',
-    status: 'active',
-    notes: 'Mteja mzuri, analipa kwa wakati.',
-    created_at: '2024-01-15T09:30:00Z',
-    updated_at: '2024-06-20T14:30:00Z',
-  },
-  {
-    id: 2,
-    customer_number: 'CUST-2024-0002',
-    first_name: 'Aisha',
-    last_name: 'Salim',
-    phone: '0723456789',
-    email: 'aisha.salim@email.com',
-    id_number: '1985051512345678',
-    id_type: 'ZANZIBAR_ID',
-    address: 'Zanzibar, Stone Town',
-    occupation: 'Mwalimu',
-    monthly_income: 800000,
-    employer: 'Shule ya Sekondari',
-    employment_years: 8,
-    profile_photo: 'https://randomuser.me/api/portraits/women/1.jpg',
-    status: 'active',
-    notes: '',
-    created_at: '2024-02-20T14:15:00Z',
-    updated_at: '2024-02-20T14:15:00Z',
-  },
-]
+// API Base URL
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // State
 const customerId = computed(() => props.customerId || route.params.id)
-const customer = ref(null)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref(null)
@@ -708,9 +668,9 @@ let currentCamera = 'user'
 
 // File upload
 const fileInput = ref(null)
-const currentPhoto = ref(null)
+const currentPhotoUrl = ref(null)
 
-// Form data
+// Form data - Initialize with empty values
 const form = reactive({
   customer_number: '',
   first_name: '',
@@ -729,7 +689,11 @@ const form = reactive({
   notes: '',
   profile_photo: null,
   profile_photo_preview: null,
+  remove_profile_photo: false,
 })
+
+// Store original form data
+const originalFormData = ref(null)
 
 // Computed
 const canProceed = computed(() => {
@@ -746,40 +710,109 @@ const toastIcon = computed(() => {
   return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
 })
 
+// Get full photo URL
+const getPhotoUrl = (photoPath) => {
+  if (!photoPath) return null
+  if (photoPath.startsWith('http')) return photoPath
+  if (photoPath.startsWith('/storage')) return `${API_BASE_URL}${photoPath}`
+  return `${API_BASE_URL}/storage/${photoPath}`
+}
+
 // Methods
 const loadCustomer = async () => {
   loading.value = true
   error.value = null
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    console.log('Loading customer with ID:', customerId.value)
+    const response = await axios.get(`${API_BASE_URL}/customers/${customerId.value}/edit`)
 
-    const found = dummyCustomers.find((c) => c.id === parseInt(customerId.value))
-    if (found) {
-      customer.value = found
-      currentPhoto.value = found.profile_photo
+    console.log('Full API Response:', response.data)
 
-      // Populate form
-      form.customer_number = found.customer_number
-      form.first_name = found.first_name
-      form.last_name = found.last_name
-      form.phone = found.phone
-      form.email = found.email || ''
-      form.id_number = found.id_number
-      form.id_type = found.id_type || 'NIDA'
-      form.address = found.address
-      form.occupation = found.occupation
-      form.monthly_income = found.monthly_income
-      form.employer = found.employer || ''
-      form.employment_years = found.employment_years || ''
-      form.status = found.status
-      form.notes = found.notes || ''
+    // Check different possible response structures
+    let customer = null
+
+    if (response.data.data && response.data.data.customer) {
+      // Structure: { data: { customer: {...} } }
+      customer = response.data.data.customer
+      console.log('Found customer in data.customer')
+    } else if (response.data.data && response.data.data.id) {
+      // Structure: { data: {...} }
+      customer = response.data.data
+      console.log('Found customer in data')
+    } else if (response.data.customer) {
+      // Structure: { customer: {...} }
+      customer = response.data.customer
+      console.log('Found customer in root.customer')
+    } else if (response.data.id) {
+      // Structure: direct customer object
+      customer = response.data
+      console.log('Found customer as root object')
+    }
+
+    if (customer) {
+      console.log('Customer data extracted:', customer)
+
+      // Update form with customer data
+      form.customer_number = customer.customer_number || ''
+      form.first_name = customer.first_name || ''
+      form.last_name = customer.last_name || ''
+      form.phone = customer.phone || ''
+      form.email = customer.email || ''
+      form.id_number = customer.id_number || ''
+      form.id_type = customer.id_type || 'NIDA'
+      form.address = customer.address || ''
+      form.occupation = customer.occupation || ''
+      form.monthly_income = customer.monthly_income ? parseFloat(customer.monthly_income) : ''
+      form.employer = customer.employer || ''
+      form.employment_years = customer.employment_years || ''
+      form.status = customer.status || 'active'
+      form.blacklist_reason = customer.blacklist_reason || ''
+      form.notes = customer.notes || ''
+      form.remove_profile_photo = false
+      form.profile_photo = null
+      form.profile_photo_preview = null
+
+      // Set current photo URL - check both profile_photo and profile_photo_url fields
+      const photoPath = customer.profile_photo_url || customer.profile_photo
+      if (photoPath) {
+        currentPhotoUrl.value = getPhotoUrl(photoPath)
+        console.log('Photo URL:', currentPhotoUrl.value)
+      } else {
+        currentPhotoUrl.value = null
+      }
+
+      console.log('Form after update:', {
+        customer_number: form.customer_number,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        phone: form.phone,
+        email: form.email,
+        id_number: form.id_number,
+        address: form.address,
+        occupation: form.occupation,
+        monthly_income: form.monthly_income,
+      })
+
+      // Store original data for change detection
+      originalFormData.value = JSON.parse(JSON.stringify(form))
+
+      // Force Vue to update the DOM
+      await nextTick()
     } else {
+      console.error('Could not extract customer data from response:', response.data)
       error.value = 'Mteja hakupatikana'
     }
   } catch (err) {
     console.error('Error loading customer:', err)
-    error.value = 'Imeshindwa kupakia taarifa za mteja. Tafadhali jaribu tena.'
+    if (err.response?.status === 404) {
+      error.value = 'Mteja hakupatikana'
+    } else if (err.response?.status === 401) {
+      error.value = 'Hauna ruhusa ya kuona taarifa hizi'
+    } else {
+      error.value =
+        err.response?.data?.message || 'Imeshindwa kupakia taarifa za mteja. Tafadhali jaribu tena.'
+    }
   } finally {
     loading.value = false
   }
@@ -820,6 +853,8 @@ const handleFileSelect = (event) => {
   }
 
   form.profile_photo = file
+  form.remove_profile_photo = false
+
   const reader = new FileReader()
   reader.onload = (e) => {
     form.profile_photo_preview = e.target.result
@@ -831,6 +866,7 @@ const handleFileSelect = (event) => {
 const removePhoto = () => {
   form.profile_photo = null
   form.profile_photo_preview = null
+  form.remove_profile_photo = true
   if (fileInput.value) {
     fileInput.value.value = ''
   }
@@ -838,7 +874,8 @@ const removePhoto = () => {
 }
 
 const removeCurrentPhoto = () => {
-  currentPhoto.value = null
+  currentPhotoUrl.value = null
+  form.remove_profile_photo = true
   hasChanges.value = true
 }
 
@@ -909,7 +946,8 @@ const acceptPhoto = () => {
 
   form.profile_photo = file
   form.profile_photo_preview = capturedImage.value
-  currentPhoto.value = null
+  form.remove_profile_photo = false
+  currentPhotoUrl.value = null
   hasChanges.value = true
   closeCamera()
 }
@@ -933,47 +971,64 @@ const submitForm = async () => {
   errors.value = {}
 
   try {
-    // Validate
-    if (!form.first_name) {
-      errors.value.first_name = ['Jina la kwanza linahitajika']
-    }
-    if (!form.last_name) {
-      errors.value.last_name = ['Jina la mwisho linahitajika']
-    }
-    if (!form.phone) {
-      errors.value.phone = ['Namba ya simu inahitajika']
-    }
-    if (!form.id_number) {
-      errors.value.id_number = ['Namba ya kitambulisho inahitajika']
-    }
-    if (!form.address) {
-      errors.value.address = ['Anwani inahitajika']
-    }
-    if (!form.occupation) {
-      errors.value.occupation = ['Kazi inahitajika']
-    }
-    if (!form.monthly_income) {
-      errors.value.monthly_income = ['Kipato cha mwezi kinahitajika']
+    const formData = new FormData()
+    formData.append('first_name', form.first_name)
+    formData.append('last_name', form.last_name)
+    formData.append('phone', form.phone)
+    formData.append('id_number', form.id_number)
+    formData.append('id_type', form.id_type)
+    formData.append('address', form.address)
+    formData.append('occupation', form.occupation)
+    formData.append('monthly_income', form.monthly_income)
+    formData.append('status', form.status)
+
+    if (form.email) formData.append('email', form.email)
+    if (form.employer) formData.append('employer', form.employer)
+    if (form.employment_years) formData.append('employment_years', form.employment_years)
+    if (form.notes) formData.append('notes', form.notes)
+    if (form.blacklist_reason) formData.append('blacklist_reason', form.blacklist_reason)
+
+    if (form.profile_photo) {
+      formData.append('profile_photo', form.profile_photo)
     }
 
-    if (Object.keys(errors.value).length > 0) {
-      saving.value = false
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return
+    if (form.remove_profile_photo) {
+      formData.append('remove_profile_photo', 'true')
     }
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    const response = await axios.post(
+      `${API_BASE_URL}/customers/${customerId.value}?_method=PUT`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
+    )
 
-    showToastMessage('Taarifa za mteja zimehifadhiwa kwa mafanikio!', 'success')
-    hasChanges.value = false
+    if (response.data.status === 'success' || response.data.success) {
+      showToastMessage('Taarifa za mteja zimehifadhiwa kwa mafanikio!', 'success')
+      hasChanges.value = false
 
-    setTimeout(() => {
-      router.push(`/customers/${customerId.value}`)
-    }, 1500)
+      setTimeout(() => {
+        router.push(`/customers/${customerId.value}`)
+      }, 1500)
+    } else {
+      showToastMessage(response.data.message || 'Hitilafu imetokea', 'error')
+    }
   } catch (error) {
     console.error('Error saving customer:', error)
-    showToastMessage('Hitilafu imetokea. Tafadhali jaribu tena.', 'error')
+
+    if (error.response?.data?.errors) {
+      errors.value = error.response.data.errors
+      showToastMessage('Tafadhali sahihisha makosa yaliyoonyeshwa', 'error')
+      currentStep.value = 1
+    } else {
+      showToastMessage(
+        error.response?.data?.message || 'Hitilafu imetokea. Tafadhali jaribu tena.',
+        'error',
+      )
+    }
   } finally {
     saving.value = false
   }
@@ -1009,15 +1064,20 @@ const showToastMessage = (message, type = 'success') => {
 }
 
 // Watch for form changes
-const originalForm = ref(null)
+watch(
+  form,
+  () => {
+    if (originalFormData.value) {
+      const isChanged = JSON.stringify(form) !== JSON.stringify(originalFormData.value)
+      hasChanges.value = isChanged
+    }
+  },
+  { deep: true },
+)
 
+// Lifecycle
 onMounted(() => {
   loadCustomer()
-
-  // Store original values for change detection
-  setTimeout(() => {
-    originalForm.value = { ...form }
-  }, 1000)
 })
 
 onUnmounted(() => {

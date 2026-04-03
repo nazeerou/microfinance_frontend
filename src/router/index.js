@@ -125,7 +125,7 @@ const routes = [
       },
       {
         path: 'loans/create',
-        name: 'LoanForm',
+        name: 'Ombi la Mkopo',
         component: LoanForm,
         meta: {
           title: 'Ombi la Mkopo',

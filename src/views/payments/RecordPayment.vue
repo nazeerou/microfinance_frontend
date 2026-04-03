@@ -183,7 +183,6 @@
                   placeholder="50000"
                   min="0"
                   :max="selectedLoan.balance"
-                  step="1000"
                   required
                   @input="validateAmount"
                 />
@@ -275,7 +274,6 @@
                 v-model="form.payment_date"
                 class="form-control"
                 :class="{ 'is-invalid': errors.payment_date }"
-                :max="today"
                 required
               />
               <span v-if="errors.payment_date" class="error-text">
