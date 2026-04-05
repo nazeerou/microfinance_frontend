@@ -1083,8 +1083,8 @@ const submitForm = async () => {
     if (!selectedCustomer.value && !form.customer_id) {
       errors.value.customer = ['Tafadhali chagua mteja']
     }
-    if (!form.amount || form.amount < 50000) {
-      errors.value.amount = ['Kiasi cha mkopo kinatakiwa kuwa angalau TZS 50,000']
+    if (!form.amount || form.amount < 10000) {
+      errors.value.amount = ['Kiasi cha mkopo kinatakiwa kuwa angalau TZS 10,000']
     }
     if (!form.interest_rate) {
       errors.value.interest_rate = ['Riba inahitajika']

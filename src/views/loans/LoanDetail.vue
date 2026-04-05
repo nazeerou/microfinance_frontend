@@ -164,6 +164,7 @@
                   </span>
                 </div>
               </div>
+
               <div v-if="loan.status === 'pending'" class="stat-item">
                 <span class="stat-label">Siku Zilizopita Tangu Kuombwa</span>
                 <span class="stat-value">{{ loan.days_pending || 0 }} siku</span>
@@ -171,6 +172,10 @@
               <div v-if="loan.progress_percentage !== undefined" class="progress-bar">
                 <div class="progress-fill" :style="{ width: loan.progress_percentage + '%' }"></div>
                 <span class="progress-text">{{ loan.progress_percentage }}% imelipwa</span>
+              </div>
+              <div v-if="loan.total_penalty !== undefined" class="progress-bar">
+                <div class="progress-fill" :style="{ width: loan.progress_percentage + '%' }"></div>
+                <span class="progress-text">{{ loan.total_penalty }} Penalty </span>
               </div>
             </div>
           </div>

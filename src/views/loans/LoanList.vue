@@ -932,9 +932,9 @@
                 <tr v-for="(item, index) in paymentSchedule" :key="index">
                   <td>{{ index + 1 }}</td>
                   <td>{{ formatDate(item.due_date) }}</td>
-                  <td>{{ formatCurrency(item.amount) }}</td>
+                  <td>{{ formatCurrency(item.amount_due) }}</td>
                   <td>{{ formatCurrency(item.paid_amount || 0) }}</td>
-                  <td>{{ formatCurrency(item.balance || item.amount) }}</td>
+                  <td>{{ formatCurrency(item.amount_due - item.paidA) }}</td>
                   <td>
                     <span class="status-badge small" :class="item.status">
                       {{ getPaymentStatus(item.status) }}
@@ -1148,64 +1148,38 @@ const handleClickOutside = (event) => {
 }
 
 // Data Loading
+// Data Loading
 const loadLoans = async () => {
   loading.value = true
   error.value = null
-
   try {
     const params = {
       page: filters.page,
       per_page: filters.perPage,
       sort_field: filters.sortBy,
       sort_order: filters.sortOrder,
+      ...(filters.search && { search: filters.search }),
+      ...(filters.status && { status: filters.status }),
+      ...(filters.date_from && { start_date_from: filters.date_from }),
+      ...(filters.date_to && { start_date_to: filters.date_to }),
+      ...(filters.min_amount && { min_amount: filters.min_amount }),
+      ...(filters.max_amount && { max_amount: filters.max_amount }),
     }
-
-    if (filters.search) params.search = filters.search
-    if (filters.status) params.status = filters.status
-    if (filters.date_from) params.start_date_from = filters.date_from
-    if (filters.date_to) params.start_date_to = filters.date_to
-    if (filters.min_amount) params.min_amount = filters.min_amount
-    if (filters.max_amount) params.max_amount = filters.max_amount
 
     const response = await axios.get(`${API_URL}/loans`, { params })
 
     if (response.data.success) {
       const responseData = response.data.data
-
-      loans.value = (responseData.data || []).map((item) => ({
-        id: item.id,
-        loan_number: item.loan_number,
-        customer: item.customer
-          ? {
-              id: item.customer.id,
-              first_name: item.customer.first_name,
-              last_name: item.customer.last_name,
-              phone: item.customer.phone,
-              profile_photo: item.customer.profile_photo_url || '/default-avatar.png',
-            }
-          : {
-              first_name: 'Unknown',
-              last_name: 'Customer',
-              phone: '',
-              profile_photo: '/default-avatar.png',
-            },
-        amount: parseFloat(item.amount),
-        interest_rate: parseFloat(item.interest_rate),
-        total_amount: parseFloat(item.total_amount),
-        balance: parseFloat(item.balance),
-        monthly_payment: parseFloat(item.monthly_payment || item.installment_amount),
-        duration_months: item.duration_months,
-        payment_frequency: item.payment_frequency,
-        start_date: item.start_date,
-        end_date: item.end_date,
-        status: item.status,
-        is_overdue: item.is_overdue,
-        progress_percentage: item.progress_percentage,
-        next_payment_date: item.next_payment_date,
-        purpose: item.purpose,
-        approved_by: item.approved_by,
-        disbursed_by: item.disbursed_by,
-        recent_payments: item.recent_payments || [],
+      loans.value = (responseData.data || []).map((loan) => ({
+        ...loan,
+        amount: parseFloat(loan.amount),
+        balance: parseFloat(loan.balance),
+        total_amount: parseFloat(loan.total_amount),
+        interest_rate: parseFloat(loan.interest_rate),
+        monthly_payment: parseFloat(loan.installment_amount),
+        customer: loan.customer
+          ? { ...loan.customer, profile_photo: loan.customer.profile_photo_url }
+          : null,
       }))
 
       pagination.currentPage = responseData.current_page || 1
@@ -1215,41 +1189,19 @@ const loadLoans = async () => {
       pagination.from = responseData.from || 0
       pagination.to = responseData.to || 0
 
-      await loadStatistics()
+      // Load statistics and summary from the response
+      if (response.data.statistics) {
+        statistics.value = response.data.statistics
+      }
+      if (response.data.summary) {
+        summary.value = response.data.summary
+      }
     }
   } catch (err) {
     console.error('Error loading loans:', err)
     error.value = err.response?.data?.message || 'Imeshindwa kupakia mikopo'
   } finally {
     loading.value = false
-  }
-}
-
-const loadStatistics = async () => {
-  try {
-    const response = await axios.get(`${API_URL}/loans-statistics`)
-
-    if (response.data.success) {
-      const stats = response.data.data
-
-      statistics.value = {
-        pending: stats.pending || 0,
-        approved: stats.approved || 0,
-        active: stats.active || 0,
-        paid: stats.paid || 0,
-        defaulted: stats.defaulted || 0,
-        rejected: stats.rejected || 0,
-      }
-
-      summary.value = {
-        total_amount: stats.total_amount || 0,
-        outstanding: stats.outstanding || 0,
-        collected: stats.collected || 0,
-        interest: stats.interest || 0,
-      }
-    }
-  } catch (err) {
-    console.error('Error loading statistics:', err)
   }
 }
 

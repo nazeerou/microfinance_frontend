@@ -11,6 +11,23 @@
       </div>
     </div>
 
+    <!-- Debug Panel (Hidden by default, press Ctrl+D to toggle) -->
+    <div v-if="showDebug" class="debug-panel">
+      <div class="debug-header">
+        <h4>Debug Information</h4>
+        <button @click="showDebug = false" class="debug-close">✕</button>
+      </div>
+      <div class="debug-content">
+        <div><strong>API_URL:</strong> {{ API_URL }}</div>
+        <div>
+          <strong>Selected Loan:</strong> {{ selectedLoan ? selectedLoan.loan_number : 'None' }}
+        </div>
+        <div><strong>Form Data:</strong> {{ JSON.stringify(form, null, 2) }}</div>
+        <div><strong>Errors:</strong> {{ JSON.stringify(errors, null, 2) }}</div>
+        <div><strong>Last Response:</strong> {{ JSON.stringify(lastResponse, null, 2) }}</div>
+      </div>
+    </div>
+
     <!-- Error Summary -->
     <div v-if="Object.keys(errors).length" class="error-summary">
       <i class="fas fa-exclamation-circle"></i>
@@ -18,7 +35,7 @@
         <h4>Tafadhali sahihisha makosa yafuatayo:</h4>
         <ul>
           <li v-for="(error, field) in errors" :key="field">
-            {{ error[0] }}
+            {{ Array.isArray(error) ? error[0] : error }}
           </li>
         </ul>
       </div>
@@ -175,7 +192,7 @@
               <div class="currency-input">
                 <span class="currency-symbol">TZS</span>
                 <input
-                  type="number"
+                  type="text"
                   id="amount"
                   v-model.number="form.amount"
                   class="form-control with-currency"
@@ -184,9 +201,9 @@
                   min="0"
                   :max="selectedLoan.balance"
                   required
-                  @input="validateAmount"
                 />
               </div>
+              <!--  @input="validateAmount" -->
               <div class="amount-hints">
                 <span class="input-hint">Kiasi cha chini: TZS 1,000</span>
                 <span class="input-hint">Imebaki: {{ formatCurrency(selectedLoan.balance) }}</span>
@@ -210,7 +227,7 @@
               </div>
               <span v-if="errors.amount" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.amount }}
+                {{ Array.isArray(errors.amount) ? errors.amount[0] : errors.amount }}
               </span>
             </div>
 
@@ -233,7 +250,9 @@
               </select>
               <span v-if="errors.payment_type" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.payment_type }}
+                {{
+                  Array.isArray(errors.payment_type) ? errors.payment_type[0] : errors.payment_type
+                }}
               </span>
             </div>
 
@@ -258,7 +277,11 @@
               </select>
               <span v-if="errors.payment_method" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.payment_method }}
+                {{
+                  Array.isArray(errors.payment_method)
+                    ? errors.payment_method[0]
+                    : errors.payment_method
+                }}
               </span>
             </div>
 
@@ -278,7 +301,9 @@
               />
               <span v-if="errors.payment_date" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
-                {{ errors.payment_date }}
+                {{
+                  Array.isArray(errors.payment_date) ? errors.payment_date[0] : errors.payment_date
+                }}
               </span>
             </div>
           </div>
@@ -300,6 +325,10 @@
                   placeholder="Mfano: CRDB, NMB, NBC"
                   required
                 />
+                <span v-if="errors.bank_name" class="error-text">
+                  <i class="fas fa-exclamation-circle"></i>
+                  {{ Array.isArray(errors.bank_name) ? errors.bank_name[0] : errors.bank_name }}
+                </span>
               </div>
               <div class="form-group">
                 <label for="transaction_reference">Namba ya Rejea</label>
@@ -333,6 +362,14 @@
                   <option value="AIRTEL-MONEY">AIRTEL MONEY</option>
                   <option value="HALOPESA">HALOPESA</option>
                 </select>
+                <span v-if="errors.mobile_provider" class="error-text">
+                  <i class="fas fa-exclamation-circle"></i>
+                  {{
+                    Array.isArray(errors.mobile_provider)
+                      ? errors.mobile_provider[0]
+                      : errors.mobile_provider
+                  }}
+                </span>
               </div>
               <div class="form-group required">
                 <label for="mobile_number">Namba ya Simu</label>
@@ -345,6 +382,14 @@
                   placeholder="Mfano: 0712345678"
                   required
                 />
+                <span v-if="errors.mobile_number" class="error-text">
+                  <i class="fas fa-exclamation-circle"></i>
+                  {{
+                    Array.isArray(errors.mobile_number)
+                      ? errors.mobile_number[0]
+                      : errors.mobile_number
+                  }}
+                </span>
               </div>
               <div class="form-group">
                 <label for="transaction_id">Transaction ID</label>
@@ -374,6 +419,14 @@
                   placeholder="Mfano: CHQ001234"
                   required
                 />
+                <span v-if="errors.cheque_number" class="error-text">
+                  <i class="fas fa-exclamation-circle"></i>
+                  {{
+                    Array.isArray(errors.cheque_number)
+                      ? errors.cheque_number[0]
+                      : errors.cheque_number
+                  }}
+                </span>
               </div>
               <div class="form-group required">
                 <label for="bank_name_cheque">Jina la Benki</label>
@@ -497,6 +550,17 @@ import axios from 'axios'
 const route = useRoute()
 const router = useRouter()
 
+// Debug
+const showDebug = ref(false)
+
+// Toggle debug with Ctrl+D
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'd') {
+    e.preventDefault()
+    showDebug.value = !showDebug.value
+  }
+})
+
 // State
 const loading = ref(false)
 const saving = ref(false)
@@ -506,16 +570,9 @@ const selectedLoan = ref(null)
 const errors = ref({})
 const showSuccessModal = ref(false)
 const lastPayment = ref(null)
-const today = ref(new Date().toISOString().split('T')[0])
+const lastResponse = ref(null)
 
-// Toast
-const showToast = ref(false)
-const toastMessage = ref('')
-const toastType = ref('success')
-
-// Check for preselected loan from query params
-const preselectedLoanId = computed(() => route.query.loan_id)
-
+// Use relative URL for Vite proxy - THIS IS KEY FOR CORS
 // const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
@@ -526,7 +583,7 @@ const form = reactive({
   amount: '',
   payment_type: 'partial',
   payment_method: 'cash',
-  payment_date: '',
+  payment_date: new Date().toISOString().split('T')[0],
   bank_name: '',
   transaction_reference: '',
   mobile_provider: '',
@@ -562,9 +619,17 @@ const isFormValid = computed(() => {
   return true
 })
 
+// Toast
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref('success')
+
 const toastIcon = computed(() => {
   return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
 })
+
+// Check for preselected loan from query params
+const preselectedLoanId = computed(() => route.query.loan_id)
 
 // API Methods
 const loadActiveLoans = async () => {
@@ -577,19 +642,20 @@ const loadActiveLoans = async () => {
       sort_order: 'desc',
     }
 
-    // Add search if exists
     if (loanSearch.value) {
       params.search = loanSearch.value
     }
 
-    const response = await axios.get(`${API_URL}/loans`, { params })
+    console.log('Loading loans from:', `${API_URL}/loans`)
+
+    const response = await axios.get(`${API_URL}/loans/`, { params })
+
+    console.log('Loans response:', response.data)
 
     if (response.data.success && response.data.data) {
       const paginatedData = response.data.data
-      // Filter loans with balance > 0 and status active/approved/defaulted
       const allLoans = paginatedData.data || []
 
-      // Process loans to ensure profile photos have full URLs
       activeLoans.value = allLoans
         .filter(
           (loan) =>
@@ -597,28 +663,16 @@ const loadActiveLoans = async () => {
             ['active', 'approved', 'defaulted'].includes(loan.status),
         )
         .map((loan) => {
-          // Create a copy of the loan to avoid mutating the original
           const processedLoan = { ...loan }
-
-          // Process customer profile photo if it exists
           if (processedLoan.customer) {
             processedLoan.customer = { ...processedLoan.customer }
-
-            // Convert relative profile photo path to full URL
-            if (processedLoan.customer.profile_photo) {
-              // Check if it's already a full URL
-              if (!processedLoan.customer.profile_photo.startsWith('http')) {
-                // Base URL for images                // const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
-                processedLoan.customer.profile_photo = `${API_URL}/storage/${processedLoan.customer.profile_photo}`
-              }
-            }
-
-            // Also set profile_photo_url if available (some APIs provide this)
-            if (processedLoan.customer.profile_photo_url) {
-              processedLoan.customer.profile_photo = processedLoan.customer.profile_photo_url
+            if (
+              processedLoan.customer.profile_photo &&
+              !processedLoan.customer.profile_photo.startsWith('http')
+            ) {
+              processedLoan.customer.profile_photo = `${API_URL}/storage/${processedLoan.customer.profile_photo}`
             }
           }
-
           return processedLoan
         })
     }
@@ -641,11 +695,12 @@ const selectLoan = (loan) => {
   selectedLoan.value = loan
   form.loan_id = loan.id
   form.amount = parseFloat(loan.installment_amount) || 0
+  console.log('Selected loan:', loan)
 }
 
 const loadLoanById = async (loanId) => {
   try {
-    const response = await axios.get(`${API_URL}/loans/${loanId}`)
+    const response = await axios.get(`${API_URL}/loans/loans/${loanId}`)
     if (response.data.success && response.data.data) {
       const loan = response.data.data
       if (parseFloat(loan.balance) > 0) {
@@ -671,7 +726,7 @@ const resetForm = () => {
   form.amount = ''
   form.payment_type = 'partial'
   form.payment_method = 'cash'
-  form.payment_date = ''
+  form.payment_date = new Date().toISOString().split('T')[0]
   form.bank_name = ''
   form.transaction_reference = ''
   form.mobile_provider = ''
@@ -699,11 +754,10 @@ const validateAmount = () => {
 
 const setAmount = (amount) => {
   form.amount = parseFloat(amount) || 0
-  validateAmount()
+  // validateAmount()
 }
 
 const handleMethodChange = () => {
-  // Reset method-specific fields
   form.bank_name = ''
   form.transaction_reference = ''
   form.mobile_provider = ''
@@ -735,16 +789,20 @@ const getMethodText = (method) => {
 }
 
 const submitPayment = async () => {
-  if (!selectedLoan.value) return
+  if (!selectedLoan.value) {
+    showToastMessage('Tafadhali chagua mkopo kwanza', 'error')
+    return
+  }
 
   saving.value = true
-  errors.value = {} // Clear previous errors
+  errors.value = {}
+  lastResponse.value = null
 
   try {
     // Prepare payment data
     const paymentData = {
       loan_id: selectedLoan.value.id,
-      amount: form.amount,
+      amount: parseFloat(form.amount),
       payment_type: form.payment_type,
       payment_method: form.payment_method,
       payment_date: form.payment_date,
@@ -764,13 +822,27 @@ const submitPayment = async () => {
       paymentData.bank_name = form.bank_name || ''
     }
 
-    console.log('Sending payment data:', paymentData) // Debug log
+    console.log('=== SUBMITTING PAYMENT ===')
+    console.log('API_URL:', API_URL)
+    console.log('Full URL:', `${API_URL}/payments`)
+    console.log('Payment Data:', JSON.stringify(paymentData, null, 2))
 
     // Make API call
-    const response = await axios.post(`${API_URL}/payments`, paymentData)
+    const response = await axios.post(`${API_URL}/payments`, paymentData, {
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+    })
+
+    console.log('=== RESPONSE RECEIVED ===')
+    console.log('Status:', response.status)
+    console.log('Data:', response.data)
+
+    lastResponse.value = response.data
 
     if (response.data.success) {
-      // Success handling
+      // Generate receipt number
       const receiptNumber =
         'RCT-' +
         new Date().getFullYear() +
@@ -783,6 +855,7 @@ const submitPayment = async () => {
         created_at: new Date().toISOString(),
       }
 
+      // Update local loan data
       const amount = parseFloat(form.amount)
       const balance = parseFloat(selectedLoan.value.balance)
       selectedLoan.value.paid_amount = (parseFloat(selectedLoan.value.paid_amount) || 0) + amount
@@ -794,44 +867,68 @@ const submitPayment = async () => {
 
       showSuccessModal.value = true
       showToastMessage('Malipo yamehifadhiwa kwa mafanikio!', 'success')
+    } else {
+      showToastMessage(response.data.message || 'Hitilafu imetokea', 'error')
     }
   } catch (err) {
-    console.error('Error recording payment:', err)
-    console.log('Error response:', err.response) // Debug log
+    console.error('=== ERROR IN SUBMIT PAYMENT ===')
+    console.error('Error object:', err)
+    console.error('Error message:', err.message)
+    console.error('Error response:', err.response)
+    console.error('Error request:', err.request)
 
-    // Handle validation errors from backend (422 status)
-    if (err.response?.status === 422) {
+    lastResponse.value = { error: err.message, response: err.response?.data }
+
+    // Handle CORS error specifically
+    if (err.message?.includes('CORS') || err.code === 'ERR_NETWORK') {
+      showToastMessage(
+        'CORS Error: Cannot connect to server. Make sure backend is running and CORS is configured.',
+        'error',
+      )
+      console.error('CORS ERROR - Check:')
+      console.error('Vite proxy is configured correctly')
+      console.error('Backend CORS headers are set')
+    }
+    // Handle validation errors (422)
+    else if (err.response?.status === 422) {
       const responseData = err.response.data
-      console.log('Validation errors:', responseData.errors) // Debug log
+      console.log('Validation errors:', responseData.errors)
 
-      // Your API returns { success: false, errors: { field: [...] } }
       if (responseData.errors) {
-        // Set errors object directly from backend - this will display on form fields
         errors.value = responseData.errors
-
-        // Show first error as toast
         const firstField = Object.keys(responseData.errors)[0]
         if (firstField && responseData.errors[firstField].length > 0) {
           showToastMessage(responseData.errors[firstField][0], 'error')
         }
+      } else if (responseData.message) {
+        showToastMessage(responseData.message, 'error')
       } else {
-        // Fallback for unexpected structure
-        showToastMessage('Hitilafu imetokea. Tafadhali jaribu tena.', error.value)
+        showToastMessage('Validation error occurred', 'error')
       }
     }
     // Handle 500 server errors
     else if (err.response?.status === 500) {
-      showToastMessage('Hitilafu ya seva. Tafadhali jaribu tena baadaye.', 'error')
+      const errorMsg =
+        err.response?.data?.message || 'Hitilafu ya seva. Tafadhali jaribu tena baadaye.'
+      showToastMessage(errorMsg, 'error')
+      console.error('Server error details:', err.response?.data)
+    }
+    // Handle 404 not found
+    else if (err.response?.status === 404) {
+      showToastMessage('API endpoint not found. Please check the URL.', 'error')
+      console.error('404 - Endpoint not found:', `${API_URL}/payments`)
     }
     // Handle network errors
     else if (err.request && !err.response) {
       showToastMessage('Hakuna muunganisho na seva. Tafadhali angalia mtandao wako.', 'error')
+      console.error('Network error - No response received')
     }
     // Handle other errors
     else {
       const errorMessage =
         err.response?.data?.message ||
         err.response?.data?.error ||
+        err.message ||
         'Hitilafu imetokea. Tafadhali jaribu tena.'
       showToastMessage(errorMessage, 'error')
     }
@@ -870,11 +967,26 @@ const showToastMessage = (message, type = 'success') => {
   }, 3000)
 }
 
+// Test API connection on mount
+const testApiConnection = async () => {
+  try {
+    console.log('Testing API connection to:', `${API_URL}/loans?per_page=1`)
+    const response = await axios.get(`${API_URL}/loans?per_page=1`)
+    console.log('API connection successful:', response.status)
+    return true
+  } catch (err) {
+    console.error('API connection failed:', err.message)
+    showToastMessage('Cannot connect to server. Please check if backend is running.', 'error')
+    return false
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
+  console.log('Component mounted. API_URL:', API_URL)
+  await testApiConnection()
   await loadActiveLoans()
 
-  // Check for preselected loan
   if (preselectedLoanId.value) {
     await loadLoanById(preselectedLoanId.value)
   }
@@ -882,11 +994,65 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* All your existing styles remain the same */
 .record-payment-container {
   padding: 20px;
   max-width: 1000px;
   margin: 0 auto;
   min-height: 100vh;
+}
+
+/* Debug Panel */
+.debug-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 500px;
+  max-width: 90vw;
+  background: #1a1a2e;
+  color: #00ff00;
+  border-radius: 8px;
+  z-index: 9999;
+  font-family: monospace;
+  font-size: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+  cursor: move;
+}
+
+.debug-header h4 {
+  margin: 0;
+  color: #e94560;
+}
+
+.debug-close {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.debug-content {
+  padding: 15px;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.debug-content div {
+  margin-bottom: 8px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 5px;
 }
 
 /* Page Header */
@@ -1022,7 +1188,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 15px;
-  /* max-height: 500px; */
   overflow-y: auto;
   padding-right: 5px;
 }
@@ -1561,15 +1726,6 @@ onMounted(async () => {
   justify-content: center;
   z-index: 2000;
   animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 .modal-content {
