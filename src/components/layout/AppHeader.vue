@@ -72,10 +72,14 @@
       <!-- User Menu -->
       <div class="user-menu" ref="userMenuRef">
         <div class="user-info" @click="toggleUserMenu">
-          <img :src="userAvatar" :alt="authStore.user?.name || 'User'" class="user-avatar" />
+          <img :src="userAvatar" :alt="userDisplayName" class="user-avatar" />
           <div class="user-details" v-if="authStore.user">
-            <span class="user-name">{{ authStore.user.name }}</span>
-            <span class="user-role">{{ formatRole(authStore.user.role) }}</span>
+            <span class="user-name">{{ userDisplayName }}</span>
+            <span class="user-role">{{ userRole }}</span>
+          </div>
+          <div class="user-details" v-else>
+            <span class="user-name">Mgeni</span>
+            <span class="user-role">Mtumiaji</span>
           </div>
           <i class="fas fa-chevron-down"></i>
         </div>
@@ -285,6 +289,43 @@
       </div>
     </div>
 
+    <!-- Logout Confirmation Modal -->
+    <div v-if="showLogoutModal" class="modal-overlay" @click="closeLogoutModal">
+      <div class="modal-content logout-modal" @click.stop>
+        <div class="modal-header">
+          <div class="modal-icon warning">
+            <i class="fas fa-sign-out-alt"></i>
+          </div>
+          <h3>Toka kwenye Mfumo</h3>
+          <button class="close-btn" @click="closeLogoutModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="logout-icon">
+            <i class="fas fa-question-circle"></i>
+          </div>
+          <p class="confirmation-text">Je, una uhakika unataka kutoka kwenye mfumo?</p>
+          <p class="warning-text-small">
+            <i class="fas fa-info-circle"></i>
+            Utahitaji kuingia tena kufikia akaunti yako.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeLogoutModal" class="btn-secondary" :disabled="logoutLoading">
+            <i class="fas fa-times"></i>
+            Ghairi
+          </button>
+          <button @click="confirmLogout" class="btn-danger" :disabled="logoutLoading">
+            <span v-if="logoutLoading" class="spinner-small"></span>
+            <span v-else>
+              <i class="fas fa-sign-out-alt"></i>
+              Toka
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- Toast Notification -->
     <div v-if="showToast" class="toast-notification" :class="toastType">
       <i :class="toastIcon"></i>
@@ -294,12 +335,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import { formatDate } from '@/utils/formatters'
 import api from '@/services/api'
+import Swal from 'sweetalert2'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -364,8 +406,45 @@ const currentPageTitle = computed(() => {
   return titles[route.path] || 'MicroFinance System'
 })
 
-// authStore.user?.avatar ||
+// User display name from API
+const userDisplayName = computed(() => {
+  if (authStore.user) {
+    const firstName = authStore.user.first_name || ''
+    const lastName = authStore.user.last_name || ''
+    if (firstName || lastName) {
+      return `${firstName} ${lastName}`.trim()
+    }
+    return authStore.user.email || authStore.user.username || 'Mtumiaji'
+  }
+  return 'Mgeni'
+})
+
+// User role from API
+const userRole = computed(() => {
+  if (authStore.user) {
+    return formatRole(authStore.user.role)
+  }
+  return 'Mtumiaji'
+})
+
+// User avatar
 const userAvatar = computed(() => {
+  if (authStore.user?.avatar) {
+    return authStore.user.avatar
+  }
+  if (authStore.user?.profile_photo_url) {
+    return authStore.user.profile_photo_url
+  }
+  // Generate avatar with user's initials
+  const name = userDisplayName.value
+  if (name && name !== 'Mgeni') {
+    const initials = name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3498db&color=fff&size=100&bold=true`
+  }
   return '/assets/images/avator_.png'
 })
 
@@ -470,25 +549,17 @@ const formatTime = (timestamp) => {
   return formatDate(date)
 }
 
-//  role ||
 const formatRole = (role) => {
   const roles = {
-    admin: 'Msimamizi',
-    loan_officer: 'Afisa Mkopo',
+    admin: 'Msimamizi Mkuu',
+    manager: 'Meneja',
+    officer: 'Afisa Mikopo',
+    cashier: 'Keshia',
+    viewer: 'Mtazamaji',
     accountant: 'Mhasibu',
+    loan_officer: 'Afisa Mikopo',
   }
   return roles[role] || 'Afisa Mikopo'
-}
-
-// Profile methods
-const goToProfile = () => {
-  router.push('/profile')
-  showUserMenu.value = false
-}
-
-const goToSettings = () => {
-  router.push('/settings')
-  showUserMenu.value = false
 }
 
 // Change Password methods
@@ -538,14 +609,58 @@ const submitChangePassword = async () => {
 
 // Logout
 const logout = async () => {
-  try {
-    await authStore.logout()
-    router.push('/login')
-    showToastMessage('Umetoka kwenye mfumo', 'success')
-  } catch (error) {
-    showToastMessage('Hitilafu wakati wa kutoka', 'error')
+  const result = await Swal.fire({
+    title: '<span style="color: #e74c3c">Toka kwenye Mfumo</span>',
+    html: `
+      <div style="padding: 20px 0">
+        <i class="fas fa-sign-out-alt" style="font-size: 60px; color: #e74c3c; margin-bottom: 20px"></i>
+        <p style="font-size: 16px; margin-bottom: 10px">Je, una uhakika unataka kutoka kwenye mfumo?</p>
+        <p style="font-size: 13px; color: #999">Utahitaji kuingia tena kufikia akaunti yako.</p>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonColor: '#e74c3c',
+    cancelButtonColor: '#95a5a6',
+    confirmButtonText: '<i class="fas fa-sign-out-alt"></i> Toka',
+    cancelButtonText: '<i class="fas fa-times"></i> Ghairi',
+    reverseButtons: true,
+    backdrop: true,
+    allowOutsideClick: false,
+    customClass: {
+      popup: 'swal2-popup-custom',
+      title: 'swal2-title-custom',
+      confirmButton: 'swal2-confirm-custom',
+      cancelButton: 'swal2-cancel-custom',
+    },
+  })
+
+  if (result.isConfirmed) {
+    try {
+      // Show loading
+      Swal.fire({
+        title: 'Inaondoa...',
+        text: 'Tafadhali subiri',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading()
+        },
+      })
+
+      // Call logout with API and page refresh
+      await authStore.logout(true)
+      // The page will automatically refresh and redirect to /login
+    } catch (error) {
+      console.error('Logout error:', error)
+      Swal.fire({
+        icon: 'error',
+        title: 'Hitilafu',
+        text: 'Imeshindwa kutoka kwenye mfumo. Tafadhali jaribu tena.',
+        confirmButtonColor: '#e74c3c',
+      })
+      // Fallback: force logout if API fails
+      authStore.forceLogout(true)
+    }
   }
-  showUserMenu.value = false
 }
 
 // Toast
@@ -568,7 +683,7 @@ const closeMobileSearch = () => {
   searchQuery.value = ''
 }
 
-// Handle click outside (manual implementation since onClickOutside is commented)
+// Handle click outside
 const handleClickOutside = (event) => {
   if (notificationRef.value && !notificationRef.value.contains(event.target)) {
     showNotifications.value = false
@@ -586,10 +701,35 @@ const handleResize = () => {
   }
 }
 
+// Fetch user data on mount
+const fetchCurrentUser = async () => {
+  try {
+    if (!authStore.user && authStore.isAuthenticated) {
+      await authStore.fetchCurrentUser()
+    }
+  } catch (error) {
+    console.error('Error fetching current user:', error)
+  }
+}
+
+// Watch for auth changes to update user display
+watch(
+  () => authStore.user,
+  (newUser) => {
+    if (newUser) {
+      console.log('User data updated:', newUser)
+    }
+  },
+  { deep: true },
+)
+
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('resize', handleResize)
   document.addEventListener('click', handleClickOutside)
+
+  // Fetch current user data
+  await fetchCurrentUser()
 
   // Load notifications if store exists
   if (notificationStore.fetchNotifications) {
@@ -604,7 +744,371 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Existing styles remain the same, add these new styles */
+/* All existing styles remain exactly the same */
+.navbar {
+  height: 70px;
+  background: white;
+  border-bottom: 1px solid #eef2f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 25px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.menu-toggle {
+  display: none;
+  background: #3498db;
+  border: none;
+  font-size: 1.2rem;
+  color: white;
+  cursor: pointer;
+  padding: 10px 12px;
+  border-radius: 8px;
+  width: 45px;
+  height: 45px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+  transition: all 0.3s;
+}
+
+.menu-toggle:hover {
+  background: #2980b9;
+  transform: scale(1.05);
+}
+
+.page-title h2 {
+  font-size: 1.3rem;
+  color: #333;
+  margin: 0;
+  font-weight: 600;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.search-bar {
+  position: relative;
+  width: 300px;
+  transition: all 0.3s;
+}
+
+.search-bar.expanded {
+  width: 350px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 15px 10px 35px;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+  background: #f8fafc;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #2196f3;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.notifications {
+  position: relative;
+}
+
+.notification-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: #666;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 5px;
+  position: relative;
+}
+
+.notification-btn:hover {
+  background: #f5f5f5;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #f44336;
+  color: white;
+  font-size: 0.7rem;
+  padding: 2px 5px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.notifications-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 350px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+  margin-top: 10px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.dropdown-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #eef2f6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dropdown-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 1rem;
+}
+
+.mark-read-btn {
+  background: none;
+  border: none;
+  color: #2196f3;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.notifications-list {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 15px 20px;
+  display: flex;
+  gap: 15px;
+  cursor: pointer;
+  transition: background 0.3s;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.notification-item:hover {
+  background: #f8f9fa;
+}
+
+.notification-item.unread {
+  background: #e3f2fd;
+}
+
+.notification-icon {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.notification-icon.payment {
+  background: #4caf50;
+}
+
+.notification-icon.loan {
+  background: #2196f3;
+}
+
+.notification-icon.customer {
+  background: #ff9800;
+}
+
+.notification-icon.warning {
+  background: #f44336;
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-text {
+  margin: 0 0 5px;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.notification-time {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.no-notifications {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+}
+
+.no-notifications i {
+  font-size: 2rem;
+  color: #ddd;
+  margin-bottom: 10px;
+}
+
+.dropdown-footer {
+  padding: 12px 20px;
+  text-align: center;
+  border-top: 1px solid #eef2f6;
+}
+
+.dropdown-footer a {
+  color: #2196f3;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.user-menu {
+  position: relative;
+  cursor: pointer;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  transition: background 0.3s;
+}
+
+.user-info:hover {
+  background: #f5f5f5;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 220px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+  margin-top: 10px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.dropdown-item {
+  padding: 12px 15px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #333;
+  text-decoration: none;
+  transition: background 0.3s;
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+.dropdown-item.text-danger {
+  color: #f44336;
+}
+
+.dropdown-item i {
+  width: 20px;
+  font-size: 1rem;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #eef2f6;
+  margin: 5px 0;
+}
+
+.mobile-search {
+  position: fixed;
+  top: 70px;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 15px;
+  border-bottom: 1px solid #eef2f6;
+  display: flex;
+  gap: 10px;
+  z-index: 99;
+}
+
+.mobile-search-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #eef2f6;
+  border-radius: 5px;
+  font-size: 0.9rem;
+}
+
+.close-search {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 10px;
+}
 
 /* Modal Styles */
 .modal-overlay {
@@ -910,398 +1414,10 @@ onUnmounted(() => {
   }
 }
 
-/* Existing navbar styles remain */
-.navbar {
-  height: 70px;
-  background: white;
-  border-bottom: 1px solid #eef2f6;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 25px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-.navbar-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.menu-toggle {
-  display: none;
-  background: #1976d2;
-  border: 1px solid #333;
-  font-size: 1.2rem;
-  color: #666;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 5px;
-}
-
-.menu-toggle:hover {
-  background: #f5f5f5;
-}
-
-.page-title h2 {
-  font-size: 1.3rem;
-  color: #333;
-  margin: 0;
-  font-weight: 600;
-}
-
-.navbar-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.search-bar {
-  position: relative;
-  width: 300px;
-  transition: all 0.3s;
-}
-
-.search-bar.expanded {
-  width: 350px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #999;
-  font-size: 0.9rem;
-}
-
-.search-input {
-  width: 100%;
-  padding: 10px 15px 10px 35px;
-  border: 1px solid #eef2f6;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  transition: all 0.3s;
-  background: #f8fafc;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #2196f3;
-  background: white;
-  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
-}
-
-.notifications {
-  position: relative;
-}
-
-.notification-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  color: #666;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 5px;
-  position: relative;
-}
-
-.notification-btn:hover {
-  background: #f5f5f5;
-}
-
-.notification-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: #f44336;
-  color: white;
-  font-size: 0.7rem;
-  padding: 2px 5px;
-  border-radius: 10px;
-  min-width: 18px;
-  text-align: center;
-}
-
-.notifications-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 350px;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
-  margin-top: 10px;
-  overflow: hidden;
-  z-index: 1000;
-}
-
-.dropdown-header {
-  padding: 15px 20px;
-  border-bottom: 1px solid #eef2f6;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.dropdown-header h4 {
-  margin: 0;
-  color: #333;
-  font-size: 1rem;
-}
-
-.mark-read-btn {
-  background: none;
-  border: none;
-  color: #2196f3;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.notifications-list {
-  max-height: 350px;
-  overflow-y: auto;
-}
-
-.notification-item {
-  padding: 15px 20px;
-  display: flex;
-  gap: 15px;
-  cursor: pointer;
-  transition: background 0.3s;
-  border-bottom: 1px solid #f5f5f5;
-}
-
-.notification-item:hover {
-  background: #f8f9fa;
-}
-
-.notification-item.unread {
-  background: #e3f2fd;
-}
-
-.notification-icon {
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  flex-shrink: 0;
-}
-
-.notification-icon.payment {
-  background: #4caf50;
-}
-
-.notification-icon.loan {
-  background: #2196f3;
-}
-
-.notification-icon.customer {
-  background: #ff9800;
-}
-
-.notification-icon.warning {
-  background: #f44336;
-}
-
-.notification-content {
-  flex: 1;
-}
-
-.notification-text {
-  margin: 0 0 5px;
-  color: #333;
-  font-size: 0.9rem;
-}
-
-.notification-time {
-  font-size: 0.75rem;
-  color: #999;
-}
-
-.no-notifications {
-  padding: 40px 20px;
-  text-align: center;
-  color: #999;
-}
-
-.no-notifications i {
-  font-size: 2rem;
-  color: #ddd;
-  margin-bottom: 10px;
-}
-
-.dropdown-footer {
-  padding: 12px 20px;
-  text-align: center;
-  border-top: 1px solid #eef2f6;
-}
-
-.dropdown-footer a {
-  color: #2196f3;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.menu-toggle {
-  display: none;
-  background: #3498db; /* Changed from #1976d2 to match theme */
-  border: none;
-  font-size: 1.2rem;
-  color: white; /* Changed from #666 to white for better visibility */
-  cursor: pointer;
-  padding: 10px 12px;
-  border-radius: 8px;
-  width: 45px;
-  height: 45px;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
-  transition: all 0.3s;
-}
-
-.menu-toggle:hover {
-  background: #2980b9;
-  transform: scale(1.05);
-}
-
-/* Make sure it's visible on mobile */
-@media (max-width: 768px) {
-  .menu-toggle {
-    display: flex;
-  }
-}
-
-.user-menu {
-  position: relative;
-  cursor: pointer;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  transition: background 0.3s;
-}
-
-.user-info:hover {
-  background: #f5f5f5;
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.user-details {
-  display: flex;
-  flex-direction: column;
-}
-
-.user-name {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #333;
-}
-
-.user-role {
-  font-size: 0.75rem;
-  color: #999;
-}
-
-.user-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 220px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
-  margin-top: 10px;
-  overflow: hidden;
-  z-index: 1000;
-}
-
-.dropdown-item {
-  padding: 12px 15px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #333;
-  text-decoration: none;
-  transition: background 0.3s;
-  width: 100%;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 0.9rem;
-  text-align: left;
-}
-
-.dropdown-item:hover {
-  background: #f5f5f5;
-}
-
-.dropdown-item.text-danger {
-  color: #f44336;
-}
-
-.dropdown-item i {
-  width: 20px;
-  font-size: 1rem;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: #eef2f6;
-  margin: 5px 0;
-}
-
-.mobile-search {
-  position: fixed;
-  top: 70px;
-  left: 0;
-  right: 0;
-  background: white;
-  padding: 15px;
-  border-bottom: 1px solid #eef2f6;
-  display: flex;
-  gap: 10px;
-  z-index: 99;
-}
-
-.mobile-search-input {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #eef2f6;
-  border-radius: 5px;
-  font-size: 0.9rem;
-}
-
-.close-search {
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 10px;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
   .menu-toggle {
-    display: block;
+    display: flex;
   }
 
   .search-bar {

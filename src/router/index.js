@@ -14,6 +14,9 @@ import CustomerCreate from '@/views/customers/CustomerForm.vue'
 import CustomerDetail from '@/views/customers/CustomerDetail.vue'
 import CustomerEdit from '@/views/customers/CustomerEdit.vue'
 
+// User pages
+import UserList from '@/views/users/UserList.vue'
+
 // Loan pages
 import LoanList from '@/views/loans/LoanList.vue'
 import LoanForm from '@/views/loans/LoanForm.vue'
@@ -41,7 +44,7 @@ const routes = [
     name: 'Login',
     component: Login,
     meta: {
-      requiresGuest: true, // Only guests can access
+      requiresGuest: true,
       title: 'Login - TAMARA MicroFinance',
     },
   },
@@ -57,7 +60,7 @@ const routes = [
     path: '/',
     component: MainLayout,
     meta: {
-      requiresAuth: true, // Parent requires auth
+      requiresAuth: true,
     },
     children: [
       {
@@ -112,6 +115,15 @@ const routes = [
         meta: {
           title: 'Hariri Mteja',
           icon: 'user-edit',
+        },
+      },
+      {
+        path: 'users',
+        name: 'Users',
+        component: UserList,
+        meta: {
+          title: 'Watumiaji Mfumo',
+          icon: 'users',
         },
       },
       {
@@ -207,7 +219,7 @@ const routes = [
     ],
   },
 
-  // 404 page - MUST be last
+  // 404 page - MUST be last - catches all unmatched routes
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
@@ -231,28 +243,62 @@ const router = createRouter({
   },
 })
 
-// FIXED navigation guard - NO automatic logout
-// STRICT navigation guard - EVERYTHING requires auth EXCEPT login
+// Navigation guard - FIXED to properly handle 404
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
 
+  // Update page title
+  if (to.meta.title) {
+    document.title = to.meta.title
+  }
+
+  // Check if route exists in our routes
+  const routeExists = router.getRoutes().some((route) => {
+    // Skip the catch-all route itself
+    if (route.name === 'NotFound') return false
+
+    // Check if the route matches the path
+    if (route.path === to.path) return true
+
+    // Check for dynamic route matches
+    const routePathRegex = routePathToRegex(route.path)
+    if (routePathRegex && routePathRegex.test(to.path)) return true
+
+    return false
+  })
+
+  // If route doesn't exist and it's not the login page, redirect to 404
+  if (!routeExists && to.path !== '/login' && to.name !== 'NotFound') {
+    next({ name: 'NotFound' })
+    return
+  }
+
   // Allow access to login page even if not authenticated
   if (to.path === '/login') {
-    // If already authenticated, go to dashboard instead of login
     if (authStore.isAuthenticated) {
       next('/dashboard')
     } else {
       next()
     }
   }
+  // Allow access to 404 page
+  else if (to.name === 'NotFound') {
+    next()
+  }
   // All other routes require authentication
   else if (!authStore.isAuthenticated) {
-    // Not authenticated - redirect to login
     next('/login')
   } else {
-    // Authenticated - proceed
     next()
   }
 })
+
+// Helper function to convert route path to regex
+function routePathToRegex(path) {
+  if (!path.includes(':')) return null
+
+  const regexPattern = path.replace(/:[^/]+/g, '[^/]+').replace(/\//g, '\\/')
+  return new RegExp(`^${regexPattern}$`)
+}
 
 export default router

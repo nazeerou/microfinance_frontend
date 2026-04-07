@@ -20,8 +20,11 @@
       <div class="mobile-user-info">
         <img :src="userAvatar" alt="User" class="mobile-avatar" />
         <div class="mobile-user-details">
-          <span class="mobile-user-name">{{ authStore.user?.name || 'Guest' }}</span>
-          <span class="mobile-user-role">{{ formatRole(authStore.user?.role) }}</span>
+          <div class="user-details">
+            <span class="mobile-user-name">{{ userDisplayName }}</span
+            ><br />
+            <span class="mobile-user-role">{{ userRole }}</span>
+          </div>
         </div>
       </div>
 
@@ -103,7 +106,7 @@
               @click="closeMobileMenu"
             >
               <i class="fas fa-clock"></i>
-              <span>Mikopo Inangojas</span>
+              <span>Mikopo Inangoja</span>
               <span v-if="pendingLoansCount" class="badge">{{ pendingLoansCount }}</span>
             </router-link>
           </div>
@@ -245,7 +248,7 @@
 
       <!-- Mobile Logout -->
       <div class="mobile-sidebar-footer">
-        <button @click="logout" class="mobile-logout-btn">
+        <button @click="handleLogout" class="mobile-logout-btn">
           <i class="fas fa-sign-out-alt"></i>
           <span>Toka kwenye Mfumo</span>
         </button>
@@ -257,7 +260,7 @@
       <!-- Header with hamburger menu -->
       <Header @toggle-sidebar="toggleMobileMenu" />
 
-      <!-- Branch Info Bar - NEW SECTION -->
+      <!-- Branch Info Bar -->
       <div class="branch-info-bar">
         <div class="branch-info-container">
           <div class="branch-info-left">
@@ -272,9 +275,6 @@
           </div>
 
           <div class="branch-info-right">
-            <!-- Add Branch Button (Admin only)  v-if="authStore.user?.role === 'admin'"-->
-
-            <!-- Branch Switcher Dropdown -->
             <div class="branch-switcher" ref="branchSwitcherRef">
               <button class="btn-switch-branch" @click.stop="toggleBranchDropdown">
                 <i class="fas fa-exchange-alt"></i>
@@ -282,7 +282,6 @@
                 <i class="fas fa-chevron-down" :class="{ rotated: showBranchDropdown }"></i>
               </button>
 
-              <!-- Branch Dropdown -->
               <div v-if="showBranchDropdown" class="branch-dropdown">
                 <div class="dropdown-header">
                   <h4>Chagua Tawi</h4>
@@ -421,11 +420,50 @@
   </div>
 
   <SessionWarning />
+
+  <!-- Logout Confirmation Modal -->
+  <div v-if="showLogoutModal" class="modal-overlay" @click="closeLogoutModal">
+    <div class="modal-content logout-modal" @click.stop>
+      <div class="modal-header">
+        <div class="modal-icon warning">
+          <i class="fas fa-sign-out-alt"></i>
+        </div>
+        <h3>Toka kwenye Mfumo</h3>
+        <button class="close-btn" @click="closeLogoutModal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="logout-icon">
+          <i class="fas fa-question-circle"></i>
+        </div>
+        <p class="confirmation-text">Je, una uhakika unataka kutoka kwenye mfumo?</p>
+        <p class="warning-text-small">
+          <i class="fas fa-info-circle"></i>
+          Utahitaji kuingia tena kufikia akaunti yako.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button @click="closeLogoutModal" class="btn-secondary" :disabled="logoutLoading">
+          <i class="fas fa-times"></i>
+          Ghairi
+        </button>
+        <button @click="confirmLogout" class="btn-danger" :disabled="logoutLoading">
+          <span v-if="logoutLoading" class="spinner-small"></span>
+          <span v-else>
+            <i class="fas fa-sign-out-alt"></i>
+            Toka
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 import Sidebar from './SideBar.vue'
 import Header from './AppHeader.vue'
 import Footer from './AppFooter.vue'
@@ -439,15 +477,7 @@ const authStore = useAuthStore()
 const loanStore = useLoanStore()
 const branchStore = useBranchStore()
 
-onMounted(async () => {
-  isMobile.value = window.innerWidth <= 1024
-  window.addEventListener('resize', handleResize)
-  window.addEventListener('toggle-sidebar', handleToggleSidebar)
-  loadPendingCount()
-
-  // Load branches
-  await branchStore.fetchBranches()
-})
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
 
 // State
 const isMobile = ref(false)
@@ -460,6 +490,10 @@ const mobileOpenSections = ref({
   reports: false,
   admin: false,
 })
+
+// Logout state
+const showLogoutModal = ref(false)
+const logoutLoading = ref(false)
 
 // Branch state
 const showBranchDropdown = ref(false)
@@ -475,6 +509,138 @@ const newBranch = ref({
   phone: '',
   email: '',
 })
+
+// Computed - User Display
+const userDisplayName = computed(() => {
+  console.log('Computing userDisplayName, authStore.user:', authStore.user)
+
+  if (authStore.user) {
+    const firstName = authStore.user.first_name || ''
+    const lastName = authStore.user.last_name || ''
+    if (firstName || lastName) {
+      return `${firstName} ${lastName}`.trim()
+    }
+    if (authStore.user.name) return authStore.user.name
+    if (authStore.user.email) return authStore.user.email.split('@')[0]
+    if (authStore.user.username) return authStore.user.username
+  }
+
+  // Try localStorage directly as fallback
+  const userData = localStorage.getItem('user_data')
+  if (userData) {
+    try {
+      const user = JSON.parse(userData)
+      const firstName = user.first_name || ''
+      const lastName = user.last_name || ''
+      if (firstName || lastName) {
+        return `${firstName} ${lastName}`.trim()
+      }
+      if (user.name) return user.name
+      if (user.email) return user.email.split('@')[0]
+    } catch (e) {
+      console.error('Error parsing user data:', e)
+    }
+  }
+
+  return 'Mgeni'
+})
+
+const userRole = computed(() => {
+  if (authStore.user?.role) {
+    return formatRole(authStore.user.role)
+  }
+
+  const userData = localStorage.getItem('user_data')
+  if (userData) {
+    try {
+      const user = JSON.parse(userData)
+      if (user.role) return formatRole(user.role)
+    } catch (e) {}
+  }
+
+  return 'Mtumiaji'
+})
+
+const userAvatar = computed(() => {
+  if (authStore.user?.profile_photo_url) {
+    return authStore.user.profile_photo_url
+  }
+
+  const userData = localStorage.getItem('user_data')
+  if (userData) {
+    try {
+      const user = JSON.parse(userData)
+      if (user.profile_photo_url) return user.profile_photo_url
+    } catch (e) {}
+  }
+
+  const name = userDisplayName.value
+  if (name && name !== 'Mgeni') {
+    const initials = name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2)
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3498db&color=fff&size=100&bold=true`
+  }
+  return '/default-avatar.png'
+})
+
+const pendingLoansCount = computed(() => loanStore.pendingCount || 0)
+
+// Methods
+const toggleMobileMenu = () => {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value
+  if (isMobileMenuOpen.value) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
+}
+
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false
+  document.body.style.overflow = ''
+}
+
+const toggleMobileSection = (section) => {
+  mobileOpenSections.value[section] = !mobileOpenSections.value[section]
+}
+
+const formatRole = (role) => {
+  const roles = {
+    admin: 'Msimamizi Mkuu',
+    manager: 'Meneja',
+    officer: 'Afisa Mikopo',
+    cashier: 'Keshia',
+    viewer: 'Mtazamaji',
+    accountant: 'Mhasibu',
+    loan_officer: 'Afisa Mikopo',
+  }
+  return roles[role] || 'Mtumiaji'
+}
+
+// Logout methods
+const handleLogout = () => {
+  showLogoutModal.value = true
+  closeMobileMenu()
+}
+
+const closeLogoutModal = () => {
+  showLogoutModal.value = false
+  logoutLoading.value = false
+}
+
+const confirmLogout = async () => {
+  logoutLoading.value = true
+  try {
+    await authStore.logout(true)
+  } catch (error) {
+    console.error('Logout error:', error)
+    authStore.forceLogout(true)
+  }
+}
 
 // Branch methods
 const toggleBranchDropdown = () => {
@@ -513,7 +679,11 @@ const addBranch = async () => {
   branchErrors.value = {}
 
   try {
-    const response = await axios.post(`${API_URL}/branches`, newBranch.value)
+    const response = await axios.post(`${API_URL}/branches`, newBranch.value, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+    })
 
     if (response.data.success) {
       await branchStore.fetchBranches()
@@ -539,45 +709,16 @@ const handleClickOutside = (event) => {
     showBranchDropdown.value = false
   }
 }
-// Computed
-const userAvatar = computed(() => {
-  return authStore.user?.avatar || '/default-avatar.png'
-})
 
-const pendingLoansCount = computed(() => loanStore.pendingCount || 0)
+// Load user data on mount
+const loadUserData = async () => {
+  // Initialize auth from localStorage
+  authStore.initAuth()
 
-// Methods
-const toggleMobileMenu = () => {
-  isMobileMenuOpen.value = !isMobileMenuOpen.value
-  if (isMobileMenuOpen.value) {
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = ''
+  // If authenticated but no user data, fetch from API
+  if (authStore.isAuthenticated && !authStore.user) {
+    await authStore.fetchCurrentUser()
   }
-}
-
-const closeMobileMenu = () => {
-  isMobileMenuOpen.value = false
-  document.body.style.overflow = ''
-}
-
-const toggleMobileSection = (section) => {
-  mobileOpenSections.value[section] = !mobileOpenSections.value[section]
-}
-
-const formatRole = (role) => {
-  const roles = {
-    admin: 'Msimamizi',
-    loan_officer: 'Afisa Mkopo',
-    accountant: 'Mhasibu',
-  }
-  return roles[role] || role || 'Guest'
-}
-
-const logout = async () => {
-  await authStore.logout()
-  router.push('/login')
-  closeMobileMenu()
 }
 
 // Watch for route changes to close mobile menu
@@ -596,12 +737,10 @@ const handleResize = () => {
   isMobile.value = window.innerWidth <= 1024
 
   if (!wasMobile && isMobile.value) {
-    // Switching to mobile - close menu if open
     closeMobileMenu()
   }
 
   if (wasMobile && !isMobile.value && isMobileMenuOpen.value) {
-    // Switching to desktop - close mobile menu
     closeMobileMenu()
   }
 }
@@ -621,21 +760,113 @@ const loadPendingCount = async () => {
 }
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   isMobile.value = window.innerWidth <= 1024
+
+  // Load user data first
+  await loadUserData()
+
+  // Load branches
+  await branchStore.fetchBranches()
+
+  // Load pending count
+  await loadPendingCount()
+
   window.addEventListener('resize', handleResize)
   window.addEventListener('toggle-sidebar', handleToggleSidebar)
-  loadPendingCount()
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('toggle-sidebar', handleToggleSidebar)
+  document.removeEventListener('click', handleClickOutside)
   document.body.style.overflow = ''
 })
 </script>
 
 <style scoped>
+/* Add logout modal styles */
+.logout-modal {
+  max-width: 400px;
+  text-align: center;
+}
+
+.logout-icon {
+  margin-bottom: 20px;
+}
+
+.logout-icon i {
+  font-size: 60px;
+  color: #f39c12;
+}
+
+.confirmation-text {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+.warning-text-small {
+  font-size: 12px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.modal-icon.warning {
+  background: #fee;
+  color: #e74c3c;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+}
+
+.spinner-small {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Rest of your existing styles remain the same */
 .layout {
   display: flex;
   min-height: 100vh;
@@ -724,13 +955,12 @@ onUnmounted(() => {
 }
 
 .close-menu {
-  background: #8a9bb5;
+  background: none;
   border: 1px solid #3498db;
   color: white;
   font-size: 1.2rem;
   cursor: pointer;
   padding: 8px 12px;
-  margin: 0 20px;
   border-radius: 5px;
   transition: background 0.3s;
 }
@@ -754,11 +984,6 @@ onUnmounted(() => {
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #3498db;
-}
-
-.mobile-user-details {
-  display: flex;
-  flex-direction: column;
 }
 
 .mobile-user-name {
@@ -945,30 +1170,7 @@ onUnmounted(() => {
   font-size: 1rem;
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
-  .with-sidebar {
-    margin-left: 0;
-  }
-}
-
-@media (max-width: 768px) {
-  .content {
-    padding: 15px;
-  }
-}
-
-@media (max-width: 480px) {
-  .content {
-    padding: 10px;
-  }
-
-  .mobile-sidebar {
-    width: 100%;
-  }
-}
-
-/* Branch Info Bar - NEW STYLES */
+/* Branch Info Bar */
 .branch-info-bar {
   background: white;
   border-bottom: 1px solid #eef2f6;
@@ -1054,7 +1256,7 @@ onUnmounted(() => {
 }
 
 .btn-switch-branch {
-  padding: 6px 62px;
+  padding: 6px 12px;
   background: white;
   border: 1px solid #eef2f6;
   border-radius: 6px;
@@ -1098,17 +1300,6 @@ onUnmounted(() => {
   z-index: 1000;
   animation: slideDown 0.2s ease;
   border: 1px solid #eef2f6;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .dropdown-header {
@@ -1184,5 +1375,194 @@ onUnmounted(() => {
 .branch-item i {
   color: #27ae60;
   font-size: 0.9rem;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #eef2f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: #999;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.close-btn:hover {
+  color: #e74c3c;
+}
+
+.modal-body {
+  padding: 25px;
+}
+
+.modal-footer {
+  padding: 20px 25px;
+  border-top: 1px solid #eef2f6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #eef2f6;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-control.is-invalid {
+  border-color: #e74c3c;
+}
+
+.error-text {
+  color: #e74c3c;
+  font-size: 0.75rem;
+  margin-top: 5px;
+  display: block;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: #f8fafc;
+  color: #666;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: #eef2f6;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .with-sidebar {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .content {
+    padding: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 10px;
+  }
+
+  .mobile-sidebar {
+    width: 100%;
+  }
 }
 </style>

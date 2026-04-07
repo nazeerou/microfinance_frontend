@@ -27,8 +27,16 @@
     <div class="mobile-user-info" v-if="isMobile && isOpen && authStore.user">
       <img :src="userAvatar" alt="User" class="user-avatar" />
       <div class="user-details">
-        <span class="user-name">{{ authStore.user.name }}</span>
-        <span class="user-role">{{ formatRole(authStore.user.role) }}</span>
+        <img :src="userAvatar" alt="User" class="avatar" />
+        <div class="user-details" v-if="!isMobile">
+          <span class="user-name">{{ userDisplayName }}</span>
+          <span class="user-role">{{ userRole }}</span>
+        </div>
+        <div class="debug-info" style="font-size: 10px; color: #999; padding: 5px">
+          <div>Auth: {{ authStore.isAuthenticated }}</div>
+          <div>User: {{ authStore.user ? 'Yes' : 'No' }}</div>
+          <div>Name: {{ userDisplayName }}</div>
+        </div>
       </div>
     </div>
 
@@ -205,7 +213,7 @@
       </div>
 
       <!-- Admin Section (conditional) -->
-      <div v-if="authStore.user?.role === 'admin'" class="nav-section">
+      <div class="nav-section">
         <div class="section-header" @click="toggleSection('admin')">
           <div class="section-title">
             <i class="fas fa-user-cog"></i>
@@ -241,8 +249,8 @@
       <div class="user-info" @click="toggleUserMenu">
         <img :src="userAvatar" alt="User" class="avatar" />
         <div class="user-details" v-if="!isMobile">
-          <span class="user-name">{{ authStore.user?.name }}</span>
-          <span class="user-role">{{ formatRole(authStore.user.role) }}</span>
+          <span class="user-name">{{ userDisplayName }}</span>
+          <span class="user-role">{{ userRole }}</span>
         </div>
         <i class="fas fa-chevron-up" v-if="showUserMenu"></i>
         <i class="fas fa-chevron-down" v-else></i>
@@ -259,7 +267,7 @@
           <span>Mipangilio</span>
         </router-link>
         <div class="dropdown-divider"></div>
-        <button @click="logout" class="dropdown-item text-danger">
+        <button @click="handleLogout" class="dropdown-item text-danger">
           <i class="fas fa-sign-out-alt"></i>
           <span>Toka</span>
         </button>
@@ -271,10 +279,48 @@
   <button v-if="isMobile" class="hamburger-btn" @click="toggleSidebar">
     <i class="fas" :class="isOpen ? 'fa-times' : 'fa-bars'"></i>
   </button>
+
+  <!-- Logout Confirmation Modal -->
+  <div v-if="showLogoutModal" class="modal-overlay" @click="closeLogoutModal">
+    <div class="modal-content logout-modal" @click.stop>
+      <div class="modal-header">
+        <div class="modal-icon warning">
+          <i class="fas fa-sign-out-alt"></i>
+        </div>
+        <h3>Toka kwenye Mfumo</h3>
+        <button class="close-btn" @click="closeLogoutModal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="logout-icon">
+          <i class="fas fa-question-circle"></i>
+        </div>
+        <p class="confirmation-text">Je, una uhakika unataka kutoka kwenye mfumo?</p>
+        <p class="warning-text-small">
+          <i class="fas fa-info-circle"></i>
+          Utahitaji kuingia tena kufikia akaunti yako.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button @click="closeLogoutModal" class="btn-secondary" :disabled="logoutLoading">
+          <i class="fas fa-times"></i>
+          Ghairi
+        </button>
+        <button @click="confirmLogout" class="btn-danger" :disabled="logoutLoading">
+          <span v-if="logoutLoading" class="spinner-small"></span>
+          <span v-else>
+            <i class="fas fa-sign-out-alt"></i>
+            Toka
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLoanStore } from '@/stores/loan'
@@ -296,12 +342,102 @@ const openSections = ref({
 })
 const showUserMenu = ref(false)
 const collapsedLogo = ref(null)
+const showLogoutModal = ref(false)
+const logoutLoading = ref(false)
+const isLoading = ref(true)
 
 // Computed
 const pendingLoansCount = computed(() => loanStore.pendingCount || 0)
 
-// authStore.user?.avatar ||
+// User display name from API - with better fallbacks
+const userDisplayName = computed(() => {
+  // Check if we have user data
+  if (authStore.user) {
+    const firstName = authStore.user.first_name || ''
+    const lastName = authStore.user.last_name || ''
+    if (firstName || lastName) {
+      return `${firstName} ${lastName}`.trim()
+    }
+    if (authStore.user.name) {
+      return authStore.user.name
+    }
+    if (authStore.user.email) {
+      return authStore.user.email.split('@')[0]
+    }
+    if (authStore.user.username) {
+      return authStore.user.username
+    }
+  }
+
+  // Try to get from localStorage directly as fallback
+  const userData = localStorage.getItem('user_data')
+  if (userData) {
+    try {
+      const user = JSON.parse(userData)
+      const firstName = user.first_name || ''
+      const lastName = user.last_name || ''
+      if (firstName || lastName) {
+        return `${firstName} ${lastName}`.trim()
+      }
+      if (user.name) return user.name
+      if (user.email) return user.email.split('@')[0]
+    } catch (e) {
+      console.error('Error parsing user data:', e)
+    }
+  }
+
+  return 'Mgeni'
+})
+
+// User role from API
+const userRole = computed(() => {
+  if (authStore.user) {
+    return formatRole(authStore.user.role)
+  }
+
+  // Try to get from localStorage
+  const userData = localStorage.getItem('user_data')
+  if (userData) {
+    try {
+      const user = JSON.parse(userData)
+      if (user.role) return formatRole(user.role)
+    } catch (e) {}
+  }
+
+  return 'Mtumiaji'
+})
+
+// User avatar
 const userAvatar = computed(() => {
+  // Check auth store first
+  if (authStore.user?.avatar) {
+    return authStore.user.avatar
+  }
+  if (authStore.user?.profile_photo_url) {
+    return authStore.user.profile_photo_url
+  }
+
+  // Try to get from localStorage
+  const userData = localStorage.getItem('user_data')
+  if (userData) {
+    try {
+      const user = JSON.parse(userData)
+      if (user.avatar) return user.avatar
+      if (user.profile_photo_url) return user.profile_photo_url
+    } catch (e) {}
+  }
+
+  // Generate avatar with user's initials
+  const name = userDisplayName.value
+  if (name && name !== 'Mgeni') {
+    const initials = name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2)
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=3498db&color=fff&size=100&bold=true`
+  }
   return '/assets/images/avator_.png'
 })
 
@@ -320,6 +456,7 @@ const toggleSidebar = () => {
     document.body.style.overflow = 'hidden'
   } else {
     document.body.style.overflow = ''
+    showUserMenu.value = false
   }
 }
 
@@ -344,17 +481,66 @@ const closeSidebarOnMobile = () => {
 
 const formatRole = (role) => {
   const roles = {
-    admin: 'Msimamizi',
-    loan_officer: 'Afisa Mkopo',
+    admin: 'Msimamizi Mkuu',
+    manager: 'Meneja',
+    officer: 'Afisa Mikopo',
+    cashier: 'Keshia',
+    viewer: 'Mtazamaji',
     accountant: 'Mhasibu',
+    loan_officer: 'Afisa Mikopo',
   }
   return roles[role] || 'Afisa Mikopo'
 }
 
-const logout = async () => {
-  await authStore.logout()
-  router.push('/login')
-  closeSidebarOnMobile()
+// Fetch user data
+const fetchUserData = async () => {
+  isLoading.value = true
+
+  // First check if we already have user in auth store
+  if (authStore.user && (authStore.user.first_name || authStore.user.last_name)) {
+    isLoading.value = false
+    return
+  }
+
+  // Try to restore from localStorage via auth store
+  authStore.initAuth()
+
+  // If still no user but authenticated, fetch from API
+  if (authStore.isAuthenticated && !authStore.user) {
+    try {
+      await authStore.checkAuthStatus()
+    } catch (error) {
+      console.error('Failed to fetch user data:', error)
+    }
+  }
+
+  isLoading.value = false
+}
+
+// Logout methods
+const handleLogout = () => {
+  showLogoutModal.value = true
+  showUserMenu.value = false
+}
+
+const closeLogoutModal = () => {
+  showLogoutModal.value = false
+  logoutLoading.value = false
+}
+
+const confirmLogout = async () => {
+  logoutLoading.value = true
+
+  try {
+    // Call logout with API and page refresh
+    await authStore.logout(true)
+    // The page will automatically refresh and redirect to /login
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Fallback: force logout if API fails
+    authStore.forceLogout(true)
+    closeLogoutModal()
+  }
 }
 
 // Handle window resize
@@ -375,6 +561,89 @@ const handleResize = () => {
   }
 }
 
+// stores/auth.js - Make sure these methods exist
+
+// Login method should save user data
+const login = async (credentials) => {
+  loading.value = true
+  error.value = null
+
+  try {
+    const response = await api.post('/login', credentials)
+
+    if (response.data.success) {
+      isAuthenticated.value = true
+
+      let userData = null
+      if (response.data.data?.user) {
+        userData = response.data.data.user
+        user.value = userData
+      } else if (response.data.user) {
+        userData = response.data.user
+        user.value = userData
+      }
+
+      // Store token
+      if (response.data.data?.token) {
+        localStorage.setItem('auth_token', response.data.data.token)
+        setAuthToken(response.data.data.token)
+      } else if (response.data.token) {
+        localStorage.setItem('auth_token', response.data.token)
+        setAuthToken(response.data.token)
+      }
+
+      // Store user data
+      if (userData) {
+        localStorage.setItem('user_data', JSON.stringify(userData))
+      }
+
+      return { success: true }
+    }
+    return { success: false, error: 'Login failed' }
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Login failed'
+    return { success: false, error: error.value }
+  } finally {
+    loading.value = false
+  }
+}
+
+// Add this method to check auth status from API
+const checkAuthStatus = async () => {
+  const token = localStorage.getItem('auth_token')
+
+  if (!token) {
+    isAuthenticated.value = false
+    user.value = null
+    return false
+  }
+
+  setAuthToken(token)
+
+  try {
+    const response = await api.get('/user')
+
+    if (response.data && (response.data.success || response.data.data)) {
+      const userData = response.data.data || response.data
+      isAuthenticated.value = true
+      user.value = userData
+      localStorage.setItem('user_data', JSON.stringify(userData))
+      return true
+    }
+  } catch (err) {
+    console.error('Auth check failed:', err)
+    // Token might be expired, clear it
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_data')
+    setAuthToken(null)
+    isAuthenticated.value = false
+    user.value = null
+    return false
+  }
+
+  return false
+}
+
 // Handle click outside
 const handleClickOutside = (event) => {
   if (showUserMenu.value) {
@@ -392,10 +661,25 @@ const handleClickOutside = (event) => {
   }
 }
 
+// Watch for auth changes to update user display
+watch(
+  () => authStore.user,
+  (newUser) => {
+    if (newUser) {
+      console.log('User data updated in sidebar:', newUser)
+      isLoading.value = false
+    }
+  },
+  { deep: true, immediate: true },
+)
+
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   isMobile.value = window.innerWidth <= 1024
   isOpen.value = !isMobile.value // Open on desktop, closed on mobile
+
+  // Fetch user data
+  await fetchUserData()
 
   window.addEventListener('resize', handleResize)
   document.addEventListener('click', handleClickOutside)
@@ -740,7 +1024,6 @@ onUnmounted(() => {
 }
 
 .nav-item.active {
-  /* background: #3498db; */
   color: white;
   box-shadow: 0 1px 1px rgba(52, 152, 219, 0.3);
 }
@@ -816,7 +1099,7 @@ onUnmounted(() => {
   bottom: 100%;
   left: 20px;
   right: 20px;
-  background: rgb(33, 124, 160);
+  background: white;
   border-radius: 8px;
   box-shadow: 0 -5px 25px rgba(0, 0, 0, 0.2);
   margin-bottom: 10px;
@@ -872,7 +1155,7 @@ onUnmounted(() => {
   margin: 5px 0;
 }
 
-/* Hamburger Button - Always visible on mobile, toggles between bars and times */
+/* Hamburger Button */
 .hamburger-btn {
   position: fixed;
   top: 15px;
@@ -906,7 +1189,174 @@ onUnmounted(() => {
   }
 }
 
-/* Small mobile devices (360px and below) */
+/* Logout Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  animation: slideUp 0.3s ease;
+  overflow: hidden;
+}
+
+.logout-modal {
+  text-align: center;
+}
+
+.modal-header {
+  padding: 20px 25px;
+  border-bottom: 1px solid #eef2f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.modal-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.modal-icon.warning {
+  background: #fee;
+  color: #e74c3c;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: #999;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.close-btn:hover {
+  color: #e74c3c;
+}
+
+.modal-body {
+  padding: 25px;
+}
+
+.logout-icon {
+  margin-bottom: 20px;
+}
+
+.logout-icon i {
+  font-size: 60px;
+  color: #f39c12;
+}
+
+.confirmation-text {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+.warning-text-small {
+  font-size: 12px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.modal-footer {
+  padding: 20px 25px;
+  border-top: 1px solid #eef2f6;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: #f8fafc;
+  color: #666;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-secondary:hover {
+  background: #eef2f6;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner-small {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Small mobile devices */
 @media (max-width: 360px) {
   .hamburger-btn {
     top: 10px;
@@ -914,34 +1364,18 @@ onUnmounted(() => {
     width: 38px;
     height: 38px;
     font-size: 1rem;
-    background-color: #2980b9;
   }
 
   .sidebar {
     width: 50%;
   }
 
-  .submenu-item {
-    padding-left: 45px;
-    font-size: 0.85rem;
-  }
-
-  .submenu-item i {
-    width: 18px;
-    font-size: 0.85rem;
-  }
-
-  .nav-item {
-    padding: 10px 15px;
-  }
-
-  .nav-item i {
-    width: 20px;
-    font-size: 1rem;
+  .modal-content {
+    width: 95%;
   }
 }
 
-/* Medium mobile devices (361px - 480px) */
+/* Medium mobile devices */
 @media (min-width: 361px) and (max-width: 480px) {
   .hamburger-btn {
     top: 12px;
@@ -953,26 +1387,10 @@ onUnmounted(() => {
   .sidebar {
     width: 280px;
   }
-
-  .submenu-item {
-    padding-left: 50px;
-  }
 }
 
-/* Tablets (481px - 768px) */
+/* Tablets */
 @media (min-width: 481px) and (max-width: 768px) {
-  .hamburger-btn {
-    top: 15px;
-    left: 15px;
-  }
-
-  .sidebar {
-    width: 280px;
-  }
-}
-
-/* Large tablets (769px - 1024px) */
-@media (min-width: 769px) and (max-width: 1024px) {
   .hamburger-btn {
     top: 15px;
     left: 15px;
