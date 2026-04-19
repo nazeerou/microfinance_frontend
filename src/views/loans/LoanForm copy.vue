@@ -8,14 +8,8 @@
       </p>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="loading" class="loading-container">
-      <div class="spinner-large"></div>
-      <p>Inapakia taarifa za mkopo...</p>
-    </div>
-
-    <!-- Customer Selection (only in create mode) -->
-    <div v-if="!isEdit && !preselectedCustomer && !loading" class="customer-selector">
+    <!-- Customer Selection (if not preselected) -->
+    <div v-if="!preselectedCustomer && !isEdit" class="customer-selector">
       <div class="selector-header">
         <i class="fas fa-user"></i>
         <h3>Chagua Mteja</h3>
@@ -30,11 +24,9 @@
           placeholder="Tafuta mteja kwa jina, simu, au namba ya kitambulisho..."
           class="search-input"
         />
-        <button v-if="customerSearch" class="clear-search" @click="clearCustomerSearch">
-          <i class="fas fa-times"></i>
-        </button>
       </div>
 
+      <!-- Add loading indicator -->
       <div v-if="customersLoading" class="search-loading">
         <div class="spinner-small"></div>
         <span>Inatafuta...</span>
@@ -60,7 +52,7 @@
         </div>
       </div>
 
-      <div v-if="noResults && !customersLoading" class="no-results">
+      <div v-if="noResults" class="no-results">
         <i class="fas fa-user-slash"></i>
         <p>Hakuna mteja aliyepatikana</p>
         <router-link to="/customers/create" class="btn-primary">
@@ -71,7 +63,7 @@
     </div>
 
     <!-- Selected Customer Info -->
-    <div v-if="selectedCustomer && !loading" class="selected-customer">
+    <div v-if="selectedCustomer" class="selected-customer">
       <div class="customer-card">
         <img
           :src="selectedCustomer.profile_photo || '/default-avatar.png'"
@@ -91,19 +83,11 @@
           <i class="fas fa-sync-alt"></i>
           Badilisha
         </button>
-        <div v-else class="edit-badge">
-          <i class="fas fa-edit"></i>
-          <span>Mteja hawezi kubadilishwa</span>
-        </div>
       </div>
     </div>
 
     <!-- Loan Application Form -->
-    <form
-      v-if="(selectedCustomer || isEdit) && !loading"
-      @submit.prevent="submitForm"
-      class="loan-form"
-    >
+    <form v-if="selectedCustomer || isEdit" @submit.prevent="submitForm" class="loan-form">
       <!-- Error Summary -->
       <div v-if="Object.keys(errors).length" class="error-summary">
         <i class="fas fa-exclamation-circle"></i>
@@ -111,7 +95,7 @@
           <h4>Tafadhali sahihisha makosa yafuatayo:</h4>
           <ul>
             <li v-for="(error, field) in errors" :key="field">
-              {{ Array.isArray(error) ? error[0] : error }}
+              {{ error[0] }}
             </li>
           </ul>
         </div>
@@ -136,9 +120,9 @@
               :class="{ 'is-invalid': errors.amount }"
               placeholder="500000"
               min="10000"
-              step="10000"
               required
             />
+            <!--  step="10000" -->
           </div>
           <span class="input-hint"
             >Kiasi cha chini: TZS 10,000 • Kiasi cha juu: TZS 50,000,000</span
@@ -253,9 +237,9 @@
             @change="calculateLoan"
             class="form-control"
             :class="{ 'is-invalid': errors.start_date }"
-            :min="today"
             required
           />
+          <!-- :min="today" -->
           <span v-if="errors.start_date" class="error-text">
             <i class="fas fa-exclamation-circle"></i>
             {{ errors.start_date }}
@@ -283,7 +267,7 @@
           >
         </div>
 
-        <!-- Penalty Rate -->
+        <!-- Penalty Rate (if different from interest rate) -->
         <div class="form-group">
           <label for="penalty_rate">
             <i class="fas fa-exclamation-triangle"></i>
@@ -358,9 +342,10 @@
         </div>
 
         <!-- Penalty Information -->
-        <div v-if="loanSummary.total_amount > 0" class="penalty-info">
-          <h4><i class="fas fa-info-circle"></i> Riba ya Kuchelewa:</h4>
+        <div class="penalty-info">
+          <h4>Riba ya Kuchelewa:</h4>
           <p>
+            <i class="fas fa-info-circle"></i>
             Ukishindwa kulipa ndani ya muda uliopangwa, riba ya
             <strong>{{ getPenaltyRate }}%</strong> itaongezeka kwa kila mwezi wa kuchelewa. Siku za
             mapumziko: <strong>{{ form.grace_period || 0 }}</strong> siku.
@@ -368,7 +353,7 @@
           <div class="penalty-example">
             <strong>Mfano:</strong> Ukichelewa miezi 3, jumla ya riba itakuwa:
             <span class="example-calculation">
-              {{ formatCurrency(form.amount) }} × {{ getPenaltyRate }}% × miezi 3 =
+              {{ formatCurrency(form.amount) }} × {{ getPenaltyRate }}% × miezi 3 ya kuchelewa =
               {{ formatCurrency(calculatePenaltyExample(3)) }}
             </span>
           </div>
@@ -380,28 +365,21 @@
         <div class="section-header">
           <i class="fas fa-gem"></i>
           <h3>Dhamana</h3>
-          <button type="button" class="btn-add" @click="openCollateralModal">
+          <button type="button" class="btn-add" @click="showAddCollateral = true">
             <i class="fas fa-plus"></i>
             Ongeza Dhamana
           </button>
         </div>
 
         <div v-if="form.collaterals.length > 0" class="collaterals-list">
-          <div
-            v-for="(collateral, index) in form.collaterals"
-            :key="collateral.id || index"
-            class="collateral-item"
-          >
+          <div v-for="(collateral, index) in form.collaterals" :key="index" class="collateral-item">
             <div class="collateral-icon">
               <i :class="getCollateralIcon(collateral.type)"></i>
             </div>
             <div class="collateral-details">
               <span class="collateral-name">{{ collateral.name }}</span>
-              <span class="collateral-type">{{ getCollateralTypeText(collateral.type) }}</span>
+              <span class="collateral-type">{{ collateral.type }}</span>
               <span class="collateral-value">{{ formatCurrency(collateral.value) }}</span>
-              <span v-if="collateral.description" class="collateral-desc">{{
-                collateral.description
-              }}</span>
             </div>
             <button type="button" class="btn-remove" @click="removeCollateral(index)" title="Ondoa">
               <i class="fas fa-times"></i>
@@ -421,18 +399,14 @@
         <div class="section-header">
           <i class="fas fa-users"></i>
           <h3>Wadhamini</h3>
-          <button type="button" class="btn-add" @click="openGuarantorModal">
+          <button type="button" class="btn-add" @click="showAddGuarantor = true">
             <i class="fas fa-plus"></i>
             Ongeza Mdhamini
           </button>
         </div>
 
         <div v-if="form.guarantors.length > 0" class="guarantors-list">
-          <div
-            v-for="(guarantor, index) in form.guarantors"
-            :key="guarantor.id || index"
-            class="guarantor-item"
-          >
+          <div v-for="(guarantor, index) in form.guarantors" :key="index" class="guarantor-item">
             <img
               :src="guarantor.photo || '/default-avatar.png'"
               :alt="guarantor.name"
@@ -440,7 +414,7 @@
             />
             <div class="guarantor-details">
               <span class="guarantor-name">{{ guarantor.name }}</span>
-              <span class="guarantor-relation">{{ guarantor.relationship || 'Rafiki' }}</span>
+              <span class="guarantor-relation">{{ guarantor.relationship }}</span>
               <span class="guarantor-phone">{{ guarantor.phone }}</span>
             </div>
             <button type="button" class="btn-remove" @click="removeGuarantor(index)" title="Ondoa">
@@ -488,17 +462,17 @@
     </form>
 
     <!-- Add Collateral Modal -->
-    <div v-if="showAddCollateral" class="modal-overlay" @click="closeCollateralModal">
+    <div v-if="showAddCollateral" class="modal-overlay" @click="showAddCollateral = false">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>Ongeza Dhamana</h3>
-          <button class="close-btn" @click="closeCollateralModal">
+          <button class="close-btn" @click="showAddCollateral = false">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label for="collateral_name">Jina la Dhamana *</label>
+            <label for="collateral_name">Jina la Dhamana</label>
             <input
               type="text"
               id="collateral_name"
@@ -518,7 +492,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="collateral_value">Thamani (TZS) *</label>
+            <label for="collateral_value">Thamani (TZS)</label>
             <input
               type="number"
               id="collateral_value"
@@ -526,7 +500,6 @@
               class="form-control"
               placeholder="5000000"
               min="0"
-              step="10000"
             />
           </div>
           <div class="form-group">
@@ -541,7 +514,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button @click="closeCollateralModal" class="btn-secondary">Ghairi</button>
+          <button @click="showAddCollateral = false" class="btn-secondary">Ghairi</button>
           <button
             @click="addCollateral"
             class="btn-primary"
@@ -554,11 +527,11 @@
     </div>
 
     <!-- Add Guarantor Modal -->
-    <div v-if="showAddGuarantor" class="modal-overlay" @click="closeGuarantorModal">
+    <div v-if="showAddGuarantor" class="modal-overlay" @click="showAddGuarantor = false">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>Ongeza Mdhamini</h3>
-          <button class="close-btn" @click="closeGuarantorModal">
+          <button class="close-btn" @click="showAddGuarantor = false">
             <i class="fas fa-times"></i>
           </button>
         </div>
@@ -572,11 +545,6 @@
               placeholder="Tafuta mdhamini kwa jina au simu..."
               class="search-input"
             />
-          </div>
-
-          <div v-if="guarantorLoading" class="search-loading">
-            <div class="spinner-small"></div>
-            <span>Inatafuta...</span>
           </div>
 
           <div v-if="guarantorResults.length > 0" class="search-results">
@@ -593,12 +561,14 @@
               />
               <div class="result-info">
                 <span class="result-name">{{ guarantor.name }}</span>
-                <span class="result-details">{{ guarantor.phone }}</span>
+                <span class="result-details"
+                  >{{ guarantor.phone }} • {{ guarantor.relationship }}</span
+                >
               </div>
             </div>
           </div>
 
-          <div v-if="guarantorNoResults && !guarantorLoading" class="no-results-small">
+          <div v-if="guarantorNoResults" class="no-results-small">
             <i class="fas fa-user-slash"></i>
             <p>Hakuna mdhamini aliyepatikana</p>
           </div>
@@ -631,7 +601,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button @click="closeGuarantorModal" class="btn-secondary">Ghairi</button>
+          <button @click="showAddGuarantor = false" class="btn-secondary">Ghairi</button>
           <button
             @click="addGuarantor"
             class="btn-primary"
@@ -670,6 +640,11 @@
             Endapo mkopaji atachelewa kulipa baada ya muda wa malipo na siku za mapumziko (grace
             period) kuisha, riba ya kuchelewa ya <strong>{{ getPenaltyRate }}%</strong> kwa mwezi
             itaongezwa kwenye kiasi kilichobaki. Riba hii itahesabiwa kwa kila mwezi wa kuchelewa.
+          </p>
+          <p class="example">
+            <strong>Mfano:</strong> Kama mkopo ni TZS 1,000,000 na riba ya kuchelewa ni 10% kwa
+            mwezi, ukichelewa mwezi 1 utatozwa TZS 100,000 zaidi, ukichelewa miezi 2 utatozwa TZS
+            200,000 zaidi, na kadhalika.
           </p>
 
           <h4>4. Dhamana</h4>
@@ -711,9 +686,8 @@ const route = useRoute()
 const router = useRouter()
 
 // API base URL
-// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-
-const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+// const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // Props
 const props = defineProps({
@@ -728,7 +702,6 @@ const props = defineProps({
 })
 
 // State
-const loading = ref(false)
 const preselectedCustomer = computed(() => route.query.customer_id)
 const selectedCustomer = ref(null)
 const customerSearch = ref('')
@@ -753,12 +726,12 @@ const toastType = ref('success')
 // Form data
 const form = reactive({
   customer_id: null,
-  amount: null,
+  amount: '',
   interest_rate: null,
-  penalty_rate: null,
-  grace_period: 0,
-  duration_months: null,
-  payment_frequency: 'monthly',
+  penalty_rate: null, // Riba ya kuchelewa (ikiachwa wazi, itakuwa sawa na interest_rate)
+  grace_period: 0, // Siku za mapumziko kabla ya riba ya kuchelewa kuanza
+  duration_months: '',
+  payment_frequency: null,
   payment_days: null,
   start_date: '',
   purpose: '',
@@ -772,7 +745,7 @@ const form = reactive({
 const newCollateral = reactive({
   name: '',
   type: 'land',
-  value: null,
+  value: '',
   description: '',
 })
 
@@ -783,13 +756,14 @@ const newGuarantor = reactive({
   relationship: '',
 })
 
-// Computed
+// Computed property for penalty rate
 const getPenaltyRate = computed(() => {
   return form.penalty_rate !== null && form.penalty_rate !== ''
     ? form.penalty_rate
     : form.interest_rate || 10
 })
 
+// Loan calculation
 const loanCalculated = computed(() => {
   return form.amount && form.interest_rate && form.duration_months && form.start_date
 })
@@ -801,6 +775,7 @@ const loanSummary = computed(() => {
   const rate = parseFloat(form.interest_rate) || 0
   const months = parseInt(form.duration_months) || 0
 
+  // Riba inahesabiwa kwa mwezi
   const interest = amount * (rate / 100) * months
   const totalAmount = amount + interest
 
@@ -813,15 +788,19 @@ const loanSummary = computed(() => {
 
   const installmentAmount = totalAmount / installments
 
+  // Calculate end date
   const startDate = new Date(form.start_date)
   const endDate = new Date(startDate)
   endDate.setMonth(startDate.getMonth() + months)
 
+  // Generate payment days based on frequency
+  generatePaymentDays()
+
   return {
-    interest: Math.round(interest * 100) / 100,
-    total_amount: Math.round(totalAmount * 100) / 100,
-    installments: Math.ceil(installments),
-    installment_amount: Math.round(installmentAmount * 100) / 100,
+    interest,
+    total_amount: totalAmount,
+    installments,
+    installment_amount: installmentAmount,
     end_date: endDate.toISOString().split('T')[0],
   }
 })
@@ -884,19 +863,18 @@ const searchCustomers = debounce(async () => {
     noResults.value = searchResults.value.length === 0
   } catch (error) {
     console.error('Error searching customers:', error)
-    showToastMessage('Hitilafu katika kutafuta wateja', 'error')
-    searchResults.value = []
-    noResults.value = true
+    if (import.meta.env.DEV) {
+      searchResults.value = []
+      noResults.value = false
+    } else {
+      showToastMessage('Hitilafu katika kutafuta wateja', 'error')
+      searchResults.value = []
+      noResults.value = true
+    }
   } finally {
     customersLoading.value = false
   }
 }, 500)
-
-const clearCustomerSearch = () => {
-  customerSearch.value = ''
-  searchResults.value = []
-  noResults.value = false
-}
 
 const selectCustomer = (customer) => {
   selectedCustomer.value = customer
@@ -911,20 +889,16 @@ const changeCustomer = () => {
 }
 
 const calculateLoan = () => {
-  if (form.payment_frequency && form.start_date) {
-    generatePaymentDays()
-  }
+  // Trigger computation
 }
 
 const calculatePenaltyExample = (months) => {
   const amount = parseFloat(form.amount) || 0
   const penaltyRate = parseFloat(getPenaltyRate.value) || 0
-  return Math.round(amount * (penaltyRate / 100) * months * 100) / 100
+  return amount * (penaltyRate / 100) * months
 }
 
 const generatePaymentDays = () => {
-  if (!form.start_date) return
-
   const startDate = new Date(form.start_date)
   const day = startDate.getDate()
 
@@ -948,50 +922,26 @@ const getCollateralIcon = (type) => {
     vehicle: 'fas fa-car',
     equipment: 'fas fa-tools',
     title_deed: 'fas fa-file-alt',
-    other: 'fas fa-gem',
+    other: 'fas fa-box',
   }
   return icons[type] || 'fas fa-gem'
 }
 
-const getCollateralTypeText = (type) => {
-  const texts = {
-    land: 'Shamba/Ardhi',
-    vehicle: 'Gari',
-    equipment: 'Vifaa',
-    title_deed: 'Hati ya Miliki',
-    other: 'Nyingine',
-  }
-  return texts[type] || 'Nyingine'
-}
-
 // Collateral methods
-const openCollateralModal = () => {
-  newCollateral.name = ''
-  newCollateral.type = 'land'
-  newCollateral.value = null
-  newCollateral.description = ''
-  showAddCollateral.value = true
-}
-
-const closeCollateralModal = () => {
-  showAddCollateral.value = false
-}
-
 const addCollateral = () => {
-  if (!newCollateral.name || !newCollateral.value) {
-    showToastMessage('Tafadhali jaza jina na thamani ya dhamana', 'error')
-    return
-  }
-
   form.collaterals.push({
-    id: Date.now(),
     name: newCollateral.name,
     type: newCollateral.type,
     value: newCollateral.value,
     description: newCollateral.description,
   })
 
-  closeCollateralModal()
+  newCollateral.name = ''
+  newCollateral.type = 'land'
+  newCollateral.value = ''
+  newCollateral.description = ''
+
+  showAddCollateral.value = false
   showToastMessage('Dhamana imeongezwa', 'success')
 }
 
@@ -1002,7 +952,7 @@ const removeCollateral = (index) => {
 
 // Guarantor methods
 const searchGuarantors = debounce(async () => {
-  if (!guarantorSearch.value || guarantorSearch.value.length < 2) {
+  if (!guarantorSearch.value) {
     guarantorResults.value = []
     guarantorNoResults.value = false
     return
@@ -1018,20 +968,17 @@ const searchGuarantors = debounce(async () => {
       },
     })
 
-    let customers = []
-    if (response.data.data?.data) {
-      customers = response.data.data.data
-    } else if (response.data.data) {
-      customers = response.data.data
+    if (response.data.success) {
+      const customers = response.data.data.data || []
+      guarantorResults.value = customers.map((c) => ({
+        id: c.id,
+        name: `${c.first_name} ${c.last_name}`,
+        phone: c.phone,
+        relationship: '',
+        photo: c.profile_photo_url,
+      }))
+      guarantorNoResults.value = customers.length === 0
     }
-
-    guarantorResults.value = customers.map((c) => ({
-      id: c.id,
-      name: `${c.first_name} ${c.last_name}`,
-      phone: c.phone,
-      photo: c.profile_photo_url || c.avatar,
-    }))
-    guarantorNoResults.value = customers.length === 0
   } catch (error) {
     console.error('Error searching guarantors:', error)
   } finally {
@@ -1039,38 +986,22 @@ const searchGuarantors = debounce(async () => {
   }
 }, 500)
 
-const openGuarantorModal = () => {
-  newGuarantor.name = ''
-  newGuarantor.phone = ''
-  newGuarantor.relationship = ''
-  guarantorSearch.value = ''
-  guarantorResults.value = []
-  showAddGuarantor.value = true
-}
-
-const closeGuarantorModal = () => {
-  showAddGuarantor.value = false
-}
-
 const selectGuarantor = (guarantor) => {
   form.guarantors.push({
     id: guarantor.id,
     name: guarantor.name,
     phone: guarantor.phone,
-    relationship: newGuarantor.relationship || 'Rafiki',
+    relationship: guarantor.relationship || 'Rafiki',
     photo: guarantor.photo,
   })
 
-  closeGuarantorModal()
+  guarantorSearch.value = ''
+  guarantorResults.value = []
+  showAddGuarantor.value = false
   showToastMessage('Mdhamini ameongezwa', 'success')
 }
 
 const addGuarantor = () => {
-  if (!newGuarantor.name || !newGuarantor.phone) {
-    showToastMessage('Tafadhali jaza jina na namba ya simu ya mdhamini', 'error')
-    return
-  }
-
   form.guarantors.push({
     id: Date.now(),
     name: newGuarantor.name,
@@ -1079,7 +1010,11 @@ const addGuarantor = () => {
     photo: null,
   })
 
-  closeGuarantorModal()
+  newGuarantor.name = ''
+  newGuarantor.phone = ''
+  newGuarantor.relationship = ''
+
+  showAddGuarantor.value = false
   showToastMessage('Mdhamini ameongezwa', 'success')
 }
 
@@ -1090,221 +1025,51 @@ const removeGuarantor = (index) => {
 
 // Load loan data for editing
 const loadLoanData = async () => {
-  if (!props.isEdit) return
+  if (props.isEdit && props.loanId) {
+    try {
+      const response = await axios.get(`${API_URL}/loans/${props.loanId}`)
 
-  const loanId = props.loanId || route.params.id
+      if (response.data.success) {
+        const loan = response.data.data
 
-  if (!loanId) {
-    console.error('No loan ID provided for editing')
-    showToastMessage('Hitilafu: Hakuna kitambulisho cha mkopo', 'error')
-    return
-  }
+        form.customer_id = loan.customer_id
+        form.amount = loan.amount
+        form.interest_rate = loan.interest_rate
+        form.penalty_rate = loan.penalty_rate
+        form.grace_period = loan.grace_period || 0
+        form.duration_months = loan.duration_months
+        form.payment_frequency = loan.payment_frequency
+        form.payment_days = loan.payment_days
+        form.start_date = loan.start_date?.split('T')[0] || ''
+        form.purpose = loan.purpose || ''
+        form.notes = loan.notes || ''
 
-  loading.value = true
-
-  try {
-    const response = await axios.get(`${API_URL}/loans/${loanId}`)
-
-    if (response.data.success || response.data.data) {
-      const loan = response.data.data
-
-      // Basic loan data
-      form.customer_id = loan.customer_id
-      form.amount = loan.amount
-      form.interest_rate = loan.interest_rate
-      form.penalty_rate = loan.penalty_rate || loan.interest_rate
-      form.grace_period = loan.grace_period || 0
-      form.duration_months = loan.duration_months
-      form.payment_frequency = loan.payment_frequency || 'monthly'
-      form.payment_days = loan.payment_days
-      form.start_date = loan.start_date?.split('T')[0] || ''
-      form.purpose = loan.purpose || ''
-      form.notes = loan.notes || ''
-
-      // Load customer data
-      if (loan.customer) {
-        selectedCustomer.value = {
-          id: loan.customer.id,
-          first_name: loan.customer.first_name,
-          last_name: loan.customer.last_name,
-          phone: loan.customer.phone,
-          occupation: loan.customer.occupation,
-          monthly_income: parseFloat(loan.customer.monthly_income) || 0,
-          profile_photo: loan.customer.profile_photo_url,
-        }
-      } else if (form.customer_id) {
-        // Fetch customer separately if not included
-        try {
-          const customerResponse = await axios.get(`${API_URL}/customers/${form.customer_id}`)
-          if (customerResponse.data.success || customerResponse.data.data) {
-            const customer = customerResponse.data.data
-            selectedCustomer.value = {
-              id: customer.id,
-              first_name: customer.first_name,
-              last_name: customer.last_name,
-              phone: customer.phone,
-              occupation: customer.occupation,
-              monthly_income: parseFloat(customer.monthly_income) || 0,
-              profile_photo: customer.profile_photo_url,
-            }
+        if (loan.customer) {
+          selectedCustomer.value = {
+            id: loan.customer.id,
+            first_name: loan.customer.first_name,
+            last_name: loan.customer.last_name,
+            phone: loan.customer.phone,
+            occupation: loan.customer.occupation,
+            monthly_income: parseFloat(loan.customer.monthly_income),
+            profile_photo: loan.customer.profile_photo_url,
           }
-        } catch (err) {
-          console.error('Error loading customer:', err)
+        }
+
+        if (loan.collateral) {
+          form.collaterals.push({
+            id: loan.collateral.id,
+            name: loan.collateral.description || 'Dhamana',
+            type: loan.collateral.type || 'other',
+            value: loan.collateral.estimated_value,
+            description: loan.collateral.description,
+          })
         }
       }
-
-      // Load collaterals
-      if (loan.collaterals && loan.collaterals.length > 0) {
-        form.collaterals = loan.collaterals.map((collateral) => ({
-          id: collateral.id,
-          name: collateral.name || collateral.description || 'Dhamana',
-          type: collateral.type || 'other',
-          value: collateral.estimated_value || collateral.value,
-          description: collateral.description,
-        }))
-      }
-
-      // Load guarantors
-      if (loan.guarantors && loan.guarantors.length > 0) {
-        form.guarantors = loan.guarantors.map((guarantor) => ({
-          id: guarantor.id,
-          name: guarantor.name,
-          phone: guarantor.phone,
-          relationship: guarantor.relationship || 'Rafiki',
-          photo: guarantor.photo || guarantor.profile_photo_url,
-        }))
-      }
-
-      // Trigger calculation
-      calculateLoan()
-
-      showToastMessage('Taarifa za mkopo zimepakiwa', 'success')
-    } else {
-      throw new Error('Invalid response format')
-    }
-  } catch (error) {
-    console.error('Error loading loan:', error)
-    showToastMessage('Hitilafu katika kupakia taarifa za mkopo', 'error')
-  } finally {
-    loading.value = false
-  }
-}
-
-// Save collaterals
-const saveCollaterals = async (loanId) => {
-  if (form.collaterals.length === 0) return
-
-  for (const collateral of form.collaterals) {
-    try {
-      const collateralData = {
-        loan_id: loanId,
-        customer_id: form.customer_id,
-        type: collateral.type || 'other',
-        name: collateral.name || 'Collateral',
-        description: collateral.description || collateral.name || '',
-        estimated_value: parseFloat(collateral.value) || 0,
-        status: 'pending',
-      }
-
-      await axios.post(`${API_URL}/collaterals`, collateralData)
     } catch (error) {
-      console.error('Error saving collateral:', error)
-      showToastMessage('Hitilafu katika kuhifadhi dhamana', 'error')
+      console.error('Error loading loan:', error)
+      showToastMessage('Hitilafu katika kupakia taarifa za mkopo', 'error')
     }
-  }
-}
-
-// Update collaterals for edit mode
-const updateCollaterals = async (loanId) => {
-  try {
-    const existingResponse = await axios.get(`${API_URL}/loans/${loanId}/collaterals`)
-    const existingCollaterals = existingResponse.data.data || []
-
-    // Delete collaterals that are no longer present
-    for (const existing of existingCollaterals) {
-      if (!form.collaterals.some((c) => c.id === existing.id)) {
-        await axios.delete(`${API_URL}/collaterals/${existing.id}`)
-      }
-    }
-
-    // Add or update collaterals
-    for (const collateral of form.collaterals) {
-      const collateralData = {
-        loan_id: loanId,
-        customer_id: form.customer_id,
-        type: collateral.type || 'other',
-        name: collateral.name || 'Collateral',
-        description: collateral.description || collateral.name || '',
-        estimated_value: parseFloat(collateral.value) || 0,
-        status: 'pending',
-      }
-
-      if (collateral.id && !collateral.id.toString().includes('Date')) {
-        await axios.put(`${API_URL}/collaterals/${collateral.id}`, collateralData)
-      } else {
-        await axios.post(`${API_URL}/collaterals`, collateralData)
-      }
-    }
-  } catch (error) {
-    console.error('Error updating collaterals:', error)
-    showToastMessage('Hitilafu katika kuhifadhi dhamana', 'error')
-  }
-}
-
-// Save guarantors
-const saveGuarantors = async (loanId) => {
-  if (form.guarantors.length === 0) return
-
-  for (const guarantor of form.guarantors) {
-    try {
-      const guarantorData = {
-        loan_id: loanId,
-        customer_id: form.customer_id,
-        name: guarantor.name || '',
-        phone: guarantor.phone || '',
-        relationship: guarantor.relationship || 'Rafiki',
-      }
-
-      await axios.post(`${API_URL}/guarantors`, guarantorData)
-    } catch (error) {
-      console.error('Error saving guarantor:', error)
-      showToastMessage('Hitilafu katika kuhifadhi mdhamini', 'error')
-    }
-  }
-}
-
-// Update guarantors for edit mode
-const updateGuarantors = async (loanId) => {
-  try {
-    const existingResponse = await axios.get(`${API_URL}/loans/${loanId}/guarantors`)
-    const existingGuarantors = existingResponse.data.data || []
-
-    // Delete guarantors that are no longer present
-    for (const existing of existingGuarantors) {
-      if (!form.guarantors.some((g) => g.id === existing.id)) {
-        await axios.delete(`${API_URL}/guarantors/${existing.id}`)
-      }
-    }
-
-    // Add or update guarantors
-    for (const guarantor of form.guarantors) {
-      const guarantorData = {
-        loan_id: loanId,
-        customer_id: form.customer_id,
-        name: guarantor.name || '',
-        phone: guarantor.phone || '',
-        relationship: guarantor.relationship || 'Rafiki',
-      }
-
-      if (guarantor.id && !guarantor.id.toString().includes('Date')) {
-        await axios.put(`${API_URL}/guarantors/${guarantor.id}`, guarantorData)
-      } else {
-        await axios.post(`${API_URL}/guarantors`, guarantorData)
-      }
-    }
-  } catch (error) {
-    console.error('Error updating guarantors:', error)
-    showToastMessage('Hitilafu katika kuhifadhi wadhamini', 'error')
   }
 }
 
@@ -1363,28 +1128,19 @@ const submitForm = async () => {
 
     let response
 
-    if (props.isEdit && (props.loanId || route.params.id)) {
-      const loanId = props.loanId || route.params.id
-      response = await axios.put(`${API_URL}/loans/${loanId}`, loanData)
+    if (props.isEdit && props.loanId) {
+      response = await axios.put(`${API_URL}/loans/${props.loanId}`, loanData)
     } else {
       response = await axios.post(`${API_URL}/loans`, loanData)
     }
 
-    if (response.data.success || response.data.data) {
-      const loanId = response.data.data.id
-
-      // Handle collaterals
-      if (props.isEdit) {
-        await updateCollaterals(loanId)
-      } else if (form.collaterals.length > 0) {
-        await saveCollaterals(loanId)
+    if (response.data.success) {
+      if (form.collaterals.length > 0) {
+        await saveCollaterals(response.data.data.id)
       }
 
-      // Handle guarantors
-      if (props.isEdit) {
-        await updateGuarantors(loanId)
-      } else if (form.guarantors.length > 0) {
-        await saveGuarantors(loanId)
+      if (form.guarantors.length > 0) {
+        await saveGuarantors(response.data.data.id)
       }
 
       showToastMessage(
@@ -1417,6 +1173,86 @@ const submitForm = async () => {
   }
 }
 
+const saveCollaterals = async (loanId) => {
+  for (const collateral of form.collaterals) {
+    try {
+      const collateralData = {
+        loan_id: loanId,
+        customer_id: form.customer_id,
+        type: collateral.type || 'other',
+        name: collateral.name || 'Collateral',
+        description: collateral.description || collateral.name || '',
+        estimated_value: parseFloat(collateral.value) || 0,
+        status: 'pending',
+        document_path: 'hamna',
+        image_path: 'none',
+      }
+
+      const response = await axios.post(`${API_URL}/collaterals`, collateralData)
+
+      if (response.data.success) {
+        showToastMessage('Dhamana imehifadhiwa', 'success')
+      }
+    } catch (error) {
+      console.error('Error saving collateral:', error)
+      let errorMessage = 'Hitilafu katika kuhifadhi dhamana'
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+
+      if (error.response?.data?.errors) {
+        const errors = Object.values(error.response.data.errors).flat()
+        errorMessage = errors.join(', ')
+      }
+
+      showToastMessage(errorMessage, 'error')
+    }
+  }
+}
+
+const saveGuarantors = async (loanId) => {
+  if (form.guarantors.length === 0) return
+
+  const savePromises = form.guarantors.map(async (guarantor) => {
+    const guarantorData = {
+      loan_id: loanId,
+      customer_id: form.customer_id,
+      name: guarantor.name || '',
+      phone: guarantor.phone || '',
+      relationship: guarantor.relationship || 'Rafiki',
+      id_number: guarantor.id_number || null,
+      id_type: guarantor.id_type || null,
+      occupation: guarantor.occupation || null,
+      address: guarantor.address || null,
+    }
+
+    return axios.post(`${API_URL}/guarantors`, guarantorData)
+  })
+
+  try {
+    const responses = await Promise.all(savePromises)
+
+    const allSuccessful = responses.every((res) => res.data.success)
+
+    if (allSuccessful) {
+      showToastMessage('Wadhamini wote wamehifadhiwa kwa mafanikio', 'success')
+    } else {
+      showToastMessage('Baadhi ya wadhamini walishindwa kuhifadhiwa', 'warning')
+    }
+  } catch (error) {
+    console.error('Error saving guarantors:', error)
+
+    let errorMessage = 'Hitilafu katika kuhifadhi wadhamini'
+
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    }
+
+    showToastMessage(errorMessage, 'error')
+  }
+}
+
 // Toast
 const showToastMessage = (message, type = 'success') => {
   toastMessage.value = message
@@ -1428,14 +1264,13 @@ const showToastMessage = (message, type = 'success') => {
   }, 3000)
 }
 
-// Lifecycle
+// Load preselected customer or edit data
 onMounted(async () => {
-  // Load preselected customer for create mode
-  if (preselectedCustomer.value && !props.isEdit) {
+  if (preselectedCustomer.value) {
     try {
       const response = await axios.get(`${API_URL}/customers/${preselectedCustomer.value}`)
 
-      if (response.data.success || response.data.data) {
+      if (response.data.success) {
         const customer = response.data.data
         selectedCustomer.value = {
           id: customer.id,
@@ -1443,7 +1278,7 @@ onMounted(async () => {
           last_name: customer.last_name,
           phone: customer.phone,
           occupation: customer.occupation,
-          monthly_income: parseFloat(customer.monthly_income) || 0,
+          monthly_income: parseFloat(customer.monthly_income),
           profile_photo: customer.profile_photo_url,
         }
         form.customer_id = customer.id
@@ -1453,8 +1288,7 @@ onMounted(async () => {
     }
   }
 
-  // Load loan data for edit mode
-  if (props.isEdit) {
+  if (props.isEdit && props.loanId) {
     await loadLoanData()
   }
 })
@@ -1465,25 +1299,6 @@ onMounted(async () => {
   padding: 20px;
   max-width: 1000px;
   margin: 0 auto;
-}
-
-/* Loading Container */
-.loading-container {
-  text-align: center;
-  padding: 60px 20px;
-  background: white;
-  border-radius: 12px;
-  margin: 20px 0;
-}
-
-.spinner-large {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #eef2f6;
-  border-top-color: #3498db;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto 15px;
 }
 
 /* Header */
@@ -1548,8 +1363,8 @@ onMounted(async () => {
 }
 
 .search-input {
-  width: 100%;
-  padding: 12px 40px 12px 45px;
+  width: 80%;
+  padding: 12px 15px 12px 45px;
   border: 2px solid #d6e2ee;
   border-radius: 8px;
   font-size: 0.95rem;
@@ -1562,23 +1377,6 @@ onMounted(async () => {
   border-color: #3498db;
   background: white;
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-}
-
-.clear-search {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: #999;
-  cursor: pointer;
-  padding: 5px;
-  z-index: 2;
-}
-
-.clear-search:hover {
-  color: #e74c3c;
 }
 
 /* Search Results */
@@ -1631,24 +1429,6 @@ onMounted(async () => {
   color: #666;
 }
 
-.search-loading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.spinner-small {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #eef2f6;
-  border-top-color: #3498db;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
 .no-results {
   text-align: center;
   padding: 40px 20px;
@@ -1683,7 +1463,7 @@ onMounted(async () => {
 }
 
 .customer-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #667eea 0%, #667eea 100%);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -1736,16 +1516,6 @@ onMounted(async () => {
 
 .btn-change:hover {
   background: rgba(255, 255, 255, 0.3);
-}
-
-.edit-badge {
-  padding: 8px 15px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
 }
 
 /* Error Summary */
@@ -1815,7 +1585,7 @@ onMounted(async () => {
 }
 
 .form-control {
-  width: 100%;
+  width: 80%;
   padding: 12px 15px;
   border: 2px solid #d3e2f1;
   border-radius: 8px;
@@ -1925,49 +1695,6 @@ onMounted(async () => {
   font-size: 1rem;
 }
 
-/* Penalty Info */
-.penalty-info {
-  margin-top: 20px;
-  padding: 15px;
-  background: #fff3e0;
-  border-radius: 8px;
-  border-left: 4px solid #f39c12;
-}
-
-.penalty-info h4 {
-  color: #e67e22;
-  margin: 0 0 10px;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.penalty-info p {
-  margin: 0 0 10px;
-  color: #666;
-  line-height: 1.5;
-}
-
-.penalty-info i {
-  color: #f39c12;
-}
-
-.penalty-example {
-  background: white;
-  padding: 10px 15px;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  color: #333;
-}
-
-.example-calculation {
-  display: block;
-  margin-top: 5px;
-  color: #27ae60;
-  font-weight: 500;
-}
-
 /* Section Cards */
 .section-card {
   background: white;
@@ -2018,7 +1745,7 @@ onMounted(async () => {
   color: white;
 }
 
-/* Collaterals & Guarantors Lists */
+/* Collaterals List */
 .collaterals-list,
 .guarantors-list {
   display: flex;
@@ -2083,12 +1810,6 @@ onMounted(async () => {
   font-weight: 500;
 }
 
-.collateral-desc {
-  font-size: 0.75rem;
-  color: #999;
-  margin-top: 2px;
-}
-
 .btn-remove {
   width: 30px;
   height: 30px;
@@ -2108,7 +1829,7 @@ onMounted(async () => {
   background: #fee;
 }
 
-/* Empty State */
+/* Empty State Small */
 .empty-state-small {
   text-align: center;
   padding: 30px 20px;
@@ -2369,7 +2090,6 @@ onMounted(async () => {
   gap: 10px;
 }
 
-/* Utility Classes */
 .mb-3 {
   margin-bottom: 15px;
 }
@@ -2458,8 +2178,7 @@ onMounted(async () => {
     text-align: center;
   }
 
-  .btn-change,
-  .edit-badge {
+  .btn-change {
     width: 100%;
     justify-content: center;
   }
@@ -2498,8 +2217,8 @@ onMounted(async () => {
     flex-direction: column;
   }
 
-  .modal-footer .btn-primary,
-  .modal-footer .btn-secondary {
+  .btn-primary,
+  .btn-secondary {
     width: 100%;
     justify-content: center;
   }
@@ -2525,6 +2244,99 @@ onMounted(async () => {
 
   .btn-remove {
     margin-top: 10px;
+  }
+}
+
+.clear-search {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 5px;
+  z-index: 2;
+}
+
+.clear-search:hover {
+  color: #e74c3c;
+}
+
+.search-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #eef2f6;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.penalty-info {
+  margin-top: 20px;
+  padding: 15px;
+  background: #fff3e0;
+  border-radius: 8px;
+  border-left: 4px solid #f39c12;
+}
+
+.penalty-info h4 {
+  color: #e67e22;
+  margin: 0 0 10px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.penalty-info p {
+  margin: 0 0 10px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.penalty-info i {
+  color: #f39c12;
+}
+
+.penalty-example {
+  background: white;
+  padding: 10px 15px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.example-calculation {
+  display: block;
+  margin-top: 5px;
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.terms-body .example {
+  background: #f0f9ff;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 5px;
+  font-size: 0.9rem;
+  border-left: 3px solid #3498db;
+}
+
+/* Responsive updates */
+@media (max-width: 768px) {
+  .penalty-example {
+    font-size: 0.85rem;
   }
 }
 </style>

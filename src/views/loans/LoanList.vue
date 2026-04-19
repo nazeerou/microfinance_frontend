@@ -967,8 +967,8 @@ import debounce from 'lodash/debounce'
 import axios from 'axios'
 
 const router = useRouter()
-// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+// const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // State
 const loans = ref([])
@@ -1130,7 +1130,7 @@ const canApprove = (loan) => loan.status === 'pending'
 const canDisburse = (loan) => loan.status === 'approved'
 const canRecordPayment = (loan) => ['active', 'defaulted'].includes(loan.status) && loan.balance > 0
 const canReject = (loan) => ['pending', 'approved'].includes(loan.status)
-const canDelete = (loan) => ['pending', 'rejected'].includes(loan.status)
+const canDelete = (loan) => ['pending', 'rejected', 'admin'].includes(loan.status)
 
 // Action Menu
 const toggleActionMenu = (loanId) => {

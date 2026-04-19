@@ -421,8 +421,8 @@ const toastType = ref('success')
 
 // Refs
 const actionDropdownRef = ref(null)
-// const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-const baseUrl = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+// const baseUrl = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // Computed
 const getStatusIcon = computed(() => {

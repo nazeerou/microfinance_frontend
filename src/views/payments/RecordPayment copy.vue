@@ -203,14 +203,6 @@
                   required
                 />
               </div>
-              <div class="info-row amount-hint" v-if="selectedLoan?.next_payment">
-                <span class="info-label input-hint">
-                  Malipo Awamu ya {{ selectedLoan.next_payment.installment_number }}:
-                </span>
-                <span class="info-value">
-                  {{ selectedLoan.next_payment.amount_due }}
-                </span>
-              </div>
               <!--  @input="validateAmount" -->
               <div class="amount-hints">
                 <span class="input-hint">Kiasi cha chini: TZS 1,000</span>
@@ -293,6 +285,7 @@
               </span>
             </div>
 
+            <!-- Payment Date -->
             <div class="form-group required">
               <label for="payment_date">
                 <i class="fas fa-calendar-alt"></i>
@@ -306,26 +299,6 @@
                 :class="{ 'is-invalid': errors.payment_date }"
                 required
               />
-
-              <!-- Display next payment info from the next_payment object -->
-              <div v-if="selectedLoan && selectedLoan.next_payment" class="payment-date-info">
-                <!-- <i class="fas fa-calendar-check"></i> -->
-                <div class="info-content">
-                  <div class="info-row">
-                    <span class="info-label">Tarehe ya Malipo :</span>
-                    <span class="info-value highlight">{{
-                      formatDate(selectedLoan.next_payment.due_date)
-                    }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Hint for user -->
-              <div class="input-hint">
-                <i class="fas fa-edit"></i>
-                Unaweza kubadilisha tarehe ikiwa ni muhimu
-              </div>
-
               <span v-if="errors.payment_date" class="error-text">
                 <i class="fas fa-exclamation-circle"></i>
                 {{
@@ -568,7 +541,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters'
 import debounce from 'lodash/debounce'
@@ -601,6 +574,8 @@ const lastResponse = ref(null)
 
 // Use relative URL for Vite proxy - THIS IS KEY FOR CORS
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+
+// const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // Form data
 const form = reactive({
@@ -719,42 +694,8 @@ const searchLoans = debounce(() => {
 const selectLoan = (loan) => {
   selectedLoan.value = loan
   form.loan_id = loan.id
-
-  // Set payment amount based on next_payment
-  // Priority: next_payment > installment_amount > balance
-  if (loan.next_payment && parseFloat(loan.next_payment) > 0) {
-    form.amount = parseFloat(loan.next_payment)
-    console.log(`Set amount to next_payment: ${form.amount}`)
-  } else if (loan.installment_amount && parseFloat(loan.installment_amount) > 0) {
-    form.amount = parseFloat(loan.installment_amount)
-    console.log(`Set amount to installment_amount: ${form.amount}`)
-  } else {
-    form.amount = ''
-    console.log('No next_payment or installment_amount available')
-  }
-
-  // Set payment type based on whether this is a full payment
-  if (form.amount === parseFloat(loan.balance)) {
-    form.payment_type = 'full'
-  } else {
-    form.payment_type = 'partial'
-  }
-
+  form.amount = parseFloat(loan.installment_amount) || 0
   console.log('Selected loan:', loan)
-
-  // Set payment amount from next_payment.amount_due
-  if (loan.next_payment && loan.next_payment.amount_due) {
-    form.amount = parseFloat(loan.next_payment.amount_due)
-  }
-
-  // Set payment date from next_payment.due_date
-  if (loan.next_payment && loan.next_payment.due_date) {
-    // Convert the due_date to YYYY-MM-DD format for the date input
-    const dueDate = new Date(loan.next_payment.due_date)
-    if (!isNaN(dueDate.getTime())) {
-      form.payment_date = dueDate.toISOString().split('T')[0]
-    }
-  }
 }
 
 const loadLoanById = async (loanId) => {
@@ -801,19 +742,11 @@ const validateAmount = () => {
 
   const balance = parseFloat(selectedLoan.value.balance)
   const amount = parseFloat(form.amount) || 0
-  const nextPayment =
-    parseFloat(selectedLoan.value.next_payment) ||
-    parseFloat(selectedLoan.value.installment_amount) ||
-    0
 
   if (amount > balance) {
     errors.value.amount = ['Kiasi cha malipo hakiwezi kuwa kikubwa kuliko deni lililobaki']
   } else if (amount <= 0) {
     errors.value.amount = ['Kiasi cha malipo kinatakiwa kuwa kikubwa kuliko sifuri']
-  } else if (form.payment_type === 'partial' && amount < nextPayment && amount !== balance) {
-    // Warning but not error - allow partial payments less than scheduled amount
-    console.log(`Partial payment of ${amount} is less than scheduled payment of ${nextPayment}`)
-    delete errors.value.amount
   } else {
     delete errors.value.amount
   }
@@ -821,28 +754,8 @@ const validateAmount = () => {
 
 const setAmount = (amount) => {
   form.amount = parseFloat(amount) || 0
-  validateAmount()
-
-  // Auto-set payment type based on amount
-  if (selectedLoan.value && form.amount === parseFloat(selectedLoan.value.balance)) {
-    form.payment_type = 'full'
-  } else if (
-    selectedLoan.value &&
-    form.amount ===
-      (parseFloat(selectedLoan.value.next_payment) ||
-        parseFloat(selectedLoan.value.installment_amount))
-  ) {
-    form.payment_type = 'partial'
-  }
+  // validateAmount()
 }
-
-// Watch for amount changes to validate
-watch(
-  () => form.amount,
-  () => {
-    validateAmount()
-  },
-)
 
 const handleMethodChange = () => {
   form.bank_name = ''
@@ -881,51 +794,19 @@ const submitPayment = async () => {
     return
   }
 
-  // Validate amount against next_payment
-  const amount = parseFloat(form.amount)
-  const nextPayment =
-    parseFloat(selectedLoan.value.next_payment) ||
-    parseFloat(selectedLoan.value.installment_amount) ||
-    0
-  const balance = parseFloat(selectedLoan.value.balance)
-
-  if (amount <= 0) {
-    showToastMessage('Tafadhali ingiza kiasi cha malipo', 'error')
-    return
-  }
-
-  if (amount > balance) {
-    showToastMessage(
-      `Kiasi cha malipo hakiwezi kuwa kikubwa kuliko deni lililobaki (${formatCurrency(balance)})`,
-      'error',
-    )
-    return
-  }
-
-  // Show warning if payment is less than scheduled but not a full payment
-  if (form.payment_type === 'partial' && amount < nextPayment && amount !== balance) {
-    const confirmMessage = `Kiasi cha malipo (${formatCurrency(amount)}) ni chini ya malipo yaliyopangwa (${formatCurrency(nextPayment)}). Je, una uhakika unataka kuendelea?`
-    if (!confirm(confirmMessage)) {
-      return
-    }
-  }
-
   saving.value = true
   errors.value = {}
   lastResponse.value = null
 
   try {
-    // Prepare payment data with next_payment tracking
+    // Prepare payment data
     const paymentData = {
       loan_id: selectedLoan.value.id,
-      amount: amount,
+      amount: parseFloat(form.amount),
       payment_type: form.payment_type,
       payment_method: form.payment_method,
       payment_date: form.payment_date,
       notes: form.notes || '',
-      // Include next_payment reference for backend processing
-      scheduled_payment_amount: nextPayment,
-      is_scheduled_payment: amount === nextPayment,
     }
 
     // Add method-specific fields
@@ -943,6 +824,7 @@ const submitPayment = async () => {
 
     console.log('=== SUBMITTING PAYMENT ===')
     console.log('API_URL:', API_URL)
+    console.log('Full URL:', `${API_URL}/payments`)
     console.log('Payment Data:', JSON.stringify(paymentData, null, 2))
 
     // Make API call
@@ -969,13 +851,13 @@ const submitPayment = async () => {
 
       lastPayment.value = {
         receipt_number: receiptNumber,
-        amount: amount,
+        amount: form.amount,
         created_at: new Date().toISOString(),
-        is_scheduled_payment: amount === nextPayment,
-        next_payment_amount: nextPayment,
       }
 
       // Update local loan data
+      const amount = parseFloat(form.amount)
+      const balance = parseFloat(selectedLoan.value.balance)
       selectedLoan.value.paid_amount = (parseFloat(selectedLoan.value.paid_amount) || 0) + amount
       selectedLoan.value.balance = balance - amount
 
@@ -991,6 +873,9 @@ const submitPayment = async () => {
   } catch (err) {
     console.error('=== ERROR IN SUBMIT PAYMENT ===')
     console.error('Error object:', err)
+    console.error('Error message:', err.message)
+    console.error('Error response:', err.response)
+    console.error('Error request:', err.request)
 
     lastResponse.value = { error: err.message, response: err.response?.data }
 

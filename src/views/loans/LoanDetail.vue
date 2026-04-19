@@ -282,7 +282,7 @@
                   <tr v-for="(payment, index) in paymentSchedule.slice(0, 3)" :key="index">
                     <td>{{ payment.installment }}</td>
                     <td>{{ formatDate(payment.due_date) }}</td>
-                    <td>{{ formatCurrency(payment.amount) }}</td>
+                    <td>{{ formatCurrency(payment.amount_due) }}</td>
                     <td>
                       <span class="status-badge small" :class="payment.status">
                         {{ getPaymentStatus(payment.status) }}
@@ -641,7 +641,7 @@
                   >
                     <td class="text-center">{{ payment.installment }}</td>
                     <td>{{ formatDate(payment.due_date) }}</td>
-                    <td class="text-right">{{ formatCurrency(payment.amount) }}</td>
+                    <td class="text-right">{{ formatCurrency(payment.amount_due) }}</td>
                     <td class="text-right">{{ formatCurrency(payment.paid_amount || 0) }}</td>
                     <td class="text-right">{{ formatCurrency(payment.interest_paid || 0) }}</td>
                     <td class="text-right">{{ formatCurrency(payment.penalty_paid || 0) }}</td>
@@ -1199,9 +1199,9 @@ const route = useRoute()
 const router = useRouter()
 
 // API base URL
-// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+// const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // State
 const loan = ref(null)

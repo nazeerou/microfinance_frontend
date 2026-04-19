@@ -22,6 +22,7 @@ import LoanList from '@/views/loans/LoanList.vue'
 import LoanForm from '@/views/loans/LoanForm.vue'
 import LoanDetail from '@/views/loans/LoanDetail.vue'
 import PendingLoan from '@/views/loans/PendingLoan.vue'
+import LoanPenalty from '@/views/loans/LoanPenalty.vue'
 
 // Payment pages
 import PaymentList from '@/views/payments/PaymentList.vue'
@@ -159,6 +160,15 @@ const routes = [
         component: PendingLoan,
         meta: {
           title: 'Mikopo Inayosubiri',
+          icon: 'clock',
+        },
+      },
+      {
+        path: 'loans/penalty',
+        name: 'PenaltyLoans',
+        component: LoanPenalty,
+        meta: {
+          title: 'Mikopo Inayopitiliza - Yenye Penalty',
           icon: 'clock',
         },
       },

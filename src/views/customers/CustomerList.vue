@@ -931,8 +931,8 @@ const getCustomerProfilePhoto = (customer) => {
   if (!customer) return defaultAvatar.value
   if (customer.profile_photo_url) return customer.profile_photo_url
   if (customer.profile_photo) {
-    // const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+    // const baseUrl = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
     return `${baseUrl}/storage/${customer.profile_photo}`
   }
   return defaultAvatar.value
