@@ -24,7 +24,7 @@
     </div>
 
     <!-- User Info (Mobile) - only show when sidebar is open -->
-    <div class="mobile-user-info" v-if="isMobile && isOpen && authStore.user">
+    <!-- <div class="mobile-user-info" v-if="isMobile && isOpen && authStore.user">
       <img :src="userAvatar" alt="User" class="user-avatar" />
       <div class="user-details">
         <img :src="userAvatar" alt="User" class="avatar" />
@@ -38,7 +38,7 @@
           <div>Name: {{ userDisplayName }}</div>
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- Navigation Menu -->
     <nav class="nav-menu">
