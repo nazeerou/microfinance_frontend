@@ -21,11 +21,13 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Put ALL node_modules into a single vendor chunk
           if (id.includes('node_modules')) {
-            return 'vendor' // All dependencies in one chunk
+            return 'vendor'
           }
         },
       },
     },
+    chunkSizeWarningLimit: 10000,
   },
 })
