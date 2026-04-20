@@ -17,30 +17,25 @@ export default defineConfig({
       },
     },
   },
-  // Add the 'build' section below
   build: {
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Create a 'vendor' chunk for all code in node_modules
           if (id.includes('node_modules')) {
-            // Further split large libraries into their own chunks
+            // Group ALL Vue-related packages together to avoid circular deps
+            if (id.includes('vue') || id.includes('@vue')) {
+              return 'vendor-vue' // Single chunk for all Vue code
+            }
+            // Lodash can stay separate
             if (id.includes('lodash')) {
               return 'vendor-lodash'
             }
-            if (id.includes('@vue/reactivity')) {
-              return 'vendor-vue-reactivity'
-            }
-            if (id.includes('vue') || id.includes('@vue')) {
-              return 'vendor-vue'
-            }
-            // All other node_modules go into a 'vendor' chunk
+            // Everything else
             return 'vendor'
           }
         },
       },
     },
-    // Optional: Increase the warning limit to 1000 kB
-    chunkSizeWarningLimit: 2000,
+    chunkSizeWarningLimit: 1000,
   },
 })
