@@ -1,9 +1,9 @@
 <template>
   <header class="navbar">
     <div class="navbar-left">
-      <button class="menu-toggle" @click="toggleSidebar" v-if="showMenuToggle">
+      <!-- <button class="menu-toggle" @click="toggleSidebar" v-if="showMenuToggle">
         <i class="fas fa-bars"></i>
-      </button>
+      </button> -->
       <div class="page-title">
         <h2>{{ currentPageTitle }}</h2>
       </div>
