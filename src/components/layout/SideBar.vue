@@ -105,12 +105,12 @@
           <router-link to="/loans/pending" class="submenu-item" @click="closeSidebarOnMobile">
             <i class="fas fa-clock"></i>
             <span>Mikopo Inangoja</span>
-            <span v-if="pendingLoansCount" class="badge">{{ pendingLoansCount }}</span>
+            <!-- <span v-if="pendingLoansCount" class="badge">{{ pendingLoansCount }}</span> -->
           </router-link>
           <router-link to="/loans/penalty" class="submenu-item" @click="closeSidebarOnMobile">
             <i class="fas fa-clock"></i>
             <span>Mikopo Iliyopitiliza (Penalty)</span>
-            <span v-if="pendingLoansCount" class="badge">{{ pendingLoansPenalty }}</span>
+            <!-- <span v-if="pendingLoansCount" class="badge">{{ pendingLoansPenalty }}</span> -->
           </router-link>
         </div>
       </div>
