@@ -1163,8 +1163,8 @@ onUnmounted(() => {
 /* Hamburger Button */
 .hamburger-btn {
   position: fixed;
-  top: 25px;
-  left: 25px;
+  top: 15px;
+  left: 15px;
   width: 45px;
   height: 45px;
   background: #3498db;

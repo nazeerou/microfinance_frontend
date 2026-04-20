@@ -1,9 +1,9 @@
 <template>
   <header class="navbar">
     <div class="navbar-left">
-      <!-- <button class="menu-toggle" @click="toggleSidebar" v-if="showMenuToggle">
+      <button class="menu-toggle" @click="toggleSidebar" v-if="showMenuToggle">
         <i class="fas fa-bars"></i>
-      </button> -->
+      </button>
       <div class="page-title">
         <h2>{{ currentPageTitle }}</h2>
       </div>
@@ -480,7 +480,26 @@ const isPasswordValid = computed(() => {
 
 // Methods
 const toggleSidebar = () => {
-  window.dispatchEvent(new CustomEvent('toggle-sidebar'))
+  isOpen.value = !isOpen.value
+  if (isOpen.value) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+    showUserMenu.value = false
+  }
+}
+
+const openSidebar = () => {
+  isOpen.value = true
+  document.body.style.overflow = 'hidden'
+}
+
+const closeSidebar = () => {
+  if (isMobile.value) {
+    isOpen.value = false
+    document.body.style.overflow = ''
+    showUserMenu.value = false
+  }
 }
 
 const toggleNotifications = () => {
