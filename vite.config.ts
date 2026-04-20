@@ -17,13 +17,14 @@ export default defineConfig({
       },
     },
   },
+  // Add the 'build' section below
   build: {
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Split node_modules into separate chunks
+          // Create a 'vendor' chunk for all code in node_modules
           if (id.includes('node_modules')) {
-            // Large libraries get their own chunks
+            // Further split large libraries into their own chunks
             if (id.includes('lodash')) {
               return 'vendor-lodash'
             }
@@ -33,13 +34,13 @@ export default defineConfig({
             if (id.includes('vue') || id.includes('@vue')) {
               return 'vendor-vue'
             }
-            // All other dependencies go to vendor chunk
+            // All other node_modules go into a 'vendor' chunk
             return 'vendor'
           }
         },
       },
     },
-    // Optional: Increase warning limit if needed (500kb default)
-    chunkSizeWarningLimit: 1000,
+    // Optional: Increase the warning limit to 1000 kB
+    chunkSizeWarningLimit: 2000,
   },
 })
