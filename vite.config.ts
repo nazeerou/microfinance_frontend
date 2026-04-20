@@ -22,20 +22,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // Group ALL Vue-related packages together to avoid circular deps
-            if (id.includes('vue') || id.includes('@vue')) {
-              return 'vendor-vue' // Single chunk for all Vue code
-            }
-            // Lodash can stay separate
-            if (id.includes('lodash')) {
-              return 'vendor-lodash'
-            }
-            // Everything else
-            return 'vendor'
+            return 'vendor' // All dependencies in one chunk
           }
         },
       },
     },
-    chunkSizeWarningLimit: 1000,
   },
 })
