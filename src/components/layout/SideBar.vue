@@ -104,7 +104,7 @@
           </router-link>
           <router-link to="/loans/pending" class="submenu-item" @click="closeSidebarOnMobile">
             <i class="fas fa-clock"></i>
-            <span>Mikopo Yetu</span>
+            <span>Mikopo Inayosubiri</span>
             <span v-if="pendingLoansCount" class="badge">{{ pendingLoansCount }}</span>
           </router-link>
           <router-link to="/loans/penalty" class="submenu-item" @click="closeSidebarOnMobile">
