@@ -24,6 +24,9 @@
           placeholder="Tafuta mteja kwa jina, simu, au namba ya kitambulisho..."
           class="search-input"
         />
+        <button v-if="customerSearch" class="clear-search" @click="clearCustomerSearch">
+          <i class="fas fa-times-circle"></i>
+        </button>
       </div>
 
       <!-- Add loading indicator -->
@@ -95,7 +98,7 @@
           <h4>Tafadhali sahihisha makosa yafuatayo:</h4>
           <ul>
             <li v-for="(error, field) in errors" :key="field">
-              {{ error[0] }}
+              {{ Array.isArray(error) ? error[0] : error }}
             </li>
           </ul>
         </div>
@@ -118,11 +121,11 @@
               @input="calculateLoan"
               class="form-control with-currency"
               :class="{ 'is-invalid': errors.amount }"
-              placeholder="500000"
+              placeholder="500,000"
               min="10000"
+              max="50000000"
               required
             />
-            <!--  step="10000" -->
           </div>
           <span class="input-hint"
             >Kiasi cha chini: TZS 10,000 • Kiasi cha juu: TZS 50,000,000</span
@@ -133,7 +136,7 @@
           </span>
         </div>
 
-        <!-- Interest Rate per Month -->
+        <!-- Interest Rate -->
         <div class="form-group required">
           <label for="interest_rate">
             <i class="fas fa-percent"></i>
@@ -214,6 +217,7 @@
             :class="{ 'is-invalid': errors.payment_frequency }"
             required
           >
+            <option value="">Chagua muda wa malipo</option>
             <option value="monthly">Kila Mwezi</option>
             <option value="weekly">Kila Wiki</option>
             <option value="daily">Kila Siku</option>
@@ -223,9 +227,6 @@
             {{ errors.payment_frequency }}
           </span>
         </div>
-
-        <!-- Payment Days -->
-        <!-- <input type="text" value="{{ loanSummary.installments }}" /> -->
 
         <!-- Start Date -->
         <div class="form-group required">
@@ -242,7 +243,6 @@
             :class="{ 'is-invalid': errors.start_date }"
             required
           />
-          <!-- :min="today" -->
           <span v-if="errors.start_date" class="error-text">
             <i class="fas fa-exclamation-circle"></i>
             {{ errors.start_date }}
@@ -270,7 +270,7 @@
           >
         </div>
 
-        <!-- Penalty Rate (if different from interest rate) -->
+        <!-- Penalty Rate -->
         <div class="form-group">
           <label for="penalty_rate">
             <i class="fas fa-exclamation-triangle"></i>
@@ -304,7 +304,7 @@
             v-model="form.purpose"
             class="form-control"
             :class="{ 'is-invalid': errors.purpose }"
-            rows="2"
+            rows="3"
             placeholder="Eleza kwa nini unahitaji mkopo huu..."
           ></textarea>
           <span v-if="errors.purpose" class="error-text">
@@ -315,7 +315,7 @@
       </div>
 
       <!-- Loan Calculation Summary -->
-      <div v-if="loanCalculated" class="calculation-summary">
+      <div v-if="loanCalculated && loanSummary.total_amount" class="calculation-summary">
         <h3>Muhtasari wa Mkopo</h3>
         <div class="summary-grid">
           <div class="summary-item">
@@ -344,11 +344,48 @@
           </div>
         </div>
 
+        <!-- Payment Schedule Preview -->
+        <div v-if="paymentSchedule.length > 0" class="payment-preview">
+          <button
+            type="button"
+            class="btn-toggle-schedule"
+            @click="showPaymentSchedule = !showPaymentSchedule"
+          >
+            <i :class="showPaymentSchedule ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
+            {{ showPaymentSchedule ? 'Ficha' : 'Onyesha' }} Ratiba ya Malipo
+          </button>
+
+          <div v-if="showPaymentSchedule" class="payment-schedule-table">
+            <div class="table-responsive">
+              <table class="payment-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Tarehe</th>
+                    <th>Malipo (TZS)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="payment in paymentSchedule.slice(0, 12)" :key="payment.number">
+                    <td>{{ payment.number }}</td>
+                    <td>{{ formatDate(payment.due_date) }}</td>
+                    <td>{{ formatCurrency(payment.amount) }}</td>
+                  </tr>
+                  <tr v-if="paymentSchedule.length > 12" class="more-payments">
+                    <td colspan="5" class="text-center">
+                      ... na malipo mengine {{ paymentSchedule.length - 12 }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <!-- Penalty Information -->
         <div class="penalty-info">
-          <h4>Riba ya Kuchelewa:</h4>
+          <h4><i class="fas fa-info-circle"></i> Riba ya Kuchelewa:</h4>
           <p>
-            <i class="fas fa-info-circle"></i>
             Ukishindwa kulipa ndani ya muda uliopangwa, riba ya
             <strong>{{ getPenaltyRate }}%</strong> itaongezeka kwa kila mwezi wa kuchelewa. Siku za
             mapumziko: <strong>{{ form.grace_period || 0 }}</strong> siku.
@@ -356,7 +393,7 @@
           <div class="penalty-example">
             <strong>Mfano:</strong> Ukichelewa miezi 3, jumla ya riba itakuwa:
             <span class="example-calculation">
-              {{ formatCurrency(form.amount) }} × {{ getPenaltyRate }}% × miezi 3 ya kuchelewa =
+              {{ formatCurrency(form.amount) }} × {{ getPenaltyRate }}% × 3 =
               {{ formatCurrency(calculatePenaltyExample(3)) }}
             </span>
           </div>
@@ -501,7 +538,7 @@
               id="collateral_value"
               v-model.number="newCollateral.value"
               class="form-control"
-              placeholder="5000000"
+              placeholder="5,000,000"
               min="0"
             />
           </div>
@@ -545,9 +582,14 @@
               type="text"
               v-model="guarantorSearch"
               @input="searchGuarantors"
-              placeholder="Tafuta mdhamini kwa jina au simu..."
+              placeholder="Tafuta mdhamini aliyesajiliwa..."
               class="search-input"
             />
+          </div>
+
+          <div v-if="guarantorLoading" class="search-loading">
+            <div class="spinner-small"></div>
+            <span>Inatafuta...</span>
           </div>
 
           <div v-if="guarantorResults.length > 0" class="search-results">
@@ -564,42 +606,48 @@
               />
               <div class="result-info">
                 <span class="result-name">{{ guarantor.name }}</span>
-                <span class="result-details"
-                  >{{ guarantor.phone }} • {{ guarantor.relationship }}</span
-                >
+                <span class="result-details">{{ guarantor.phone }}</span>
               </div>
             </div>
           </div>
 
-          <div v-if="guarantorNoResults" class="no-results-small">
+          <div v-if="guarantorNoResults && guarantorSearch" class="no-results-small">
             <i class="fas fa-user-slash"></i>
             <p>Hakuna mdhamini aliyepatikana</p>
           </div>
 
-          <div class="form-group mt-3">
-            <label for="new_guarantor_name">Au ingiza taarifa za mdhamini mpya</label>
+          <div class="divider-text">
+            <span>AU</span>
+          </div>
+
+          <div class="form-group">
+            <label for="new_guarantor_name">Jina kamili la mdhamini mpya</label>
             <input
               type="text"
               id="new_guarantor_name"
               v-model="newGuarantor.name"
               class="form-control"
-              placeholder="Jina kamili"
+              placeholder="Mfano: John Doe"
             />
           </div>
           <div class="form-group">
+            <label for="new_guarantor_phone">Namba ya simu</label>
             <input
-              type="text"
+              type="tel"
+              id="new_guarantor_phone"
               v-model="newGuarantor.phone"
               class="form-control"
-              placeholder="Namba ya simu"
+              placeholder="0712345678"
             />
           </div>
           <div class="form-group">
+            <label for="new_guarantor_relationship">Uhusiano</label>
             <input
               type="text"
+              id="new_guarantor_relationship"
               v-model="newGuarantor.relationship"
               class="form-control"
-              placeholder="Uhusiano (Mfano: Kaka, Rafiki)"
+              placeholder="Mfano: Kaka, Rafiki, Mwajiri"
             />
           </div>
         </div>
@@ -610,7 +658,7 @@
             class="btn-primary"
             :disabled="!newGuarantor.name || !newGuarantor.phone"
           >
-            Ongeza
+            Ongeza Mdhamini
           </button>
         </div>
       </div>
@@ -671,15 +719,17 @@
     </div>
 
     <!-- Toast Notification -->
-    <div v-if="showToast" class="toast-notification" :class="toastType">
-      <i :class="toastIcon"></i>
-      <span>{{ toastMessage }}</span>
-    </div>
+    <Transition name="toast">
+      <div v-if="showToast" class="toast-notification" :class="toastType">
+        <i :class="toastIcon"></i>
+        <span>{{ toastMessage }}</span>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import debounce from 'lodash/debounce'
@@ -689,8 +739,7 @@ const route = useRoute()
 const router = useRouter()
 
 // API base URL
-// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
 
 // Props
 const props = defineProps({
@@ -716,6 +765,7 @@ const errors = ref({})
 const showAddCollateral = ref(false)
 const showAddGuarantor = ref(false)
 const showTerms = ref(false)
+const showPaymentSchedule = ref(false)
 const guarantorSearch = ref('')
 const guarantorResults = ref([])
 const guarantorLoading = ref(false)
@@ -725,6 +775,7 @@ const guarantorNoResults = ref(false)
 const showToast = ref(false)
 const toastMessage = ref('')
 const toastType = ref('success')
+let toastTimeout = null
 
 // Form data
 const form = reactive({
@@ -734,7 +785,7 @@ const form = reactive({
   penalty_rate: null,
   grace_period: 0,
   duration_months: '',
-  payment_frequency: null,
+  payment_frequency: '',
   payment_days: null,
   start_date: '',
   purpose: '',
@@ -766,22 +817,21 @@ const getPenaltyRate = computed(() => {
     : form.interest_rate || 10
 })
 
-// CORRECTED: Helper function to calculate exact weeks between dates
-const getWeeksBetween = (startDate, endDate) => {
-  const diffTime = Math.abs(endDate - startDate)
-  const diffDays = diffTime / (1000 * 60 * 60 * 24)
-  return diffDays / 7
-}
-
-// CORRECTED: Helper function to calculate exact days between dates
+// Helper function to calculate exact days between dates
 const getDaysBetween = (startDate, endDate) => {
   const diffTime = Math.abs(endDate - startDate)
   return diffTime / (1000 * 60 * 60 * 24)
 }
 
-// CORRECTED: Loan calculation with proper interest formula
+// Loan calculation with proper interest formula
 const loanCalculated = computed(() => {
-  return form.amount && form.interest_rate && form.duration_months && form.start_date
+  return (
+    form.amount &&
+    form.interest_rate &&
+    form.duration_months &&
+    form.start_date &&
+    form.payment_frequency
+  )
 })
 
 const loanSummary = computed(() => {
@@ -800,65 +850,32 @@ const loanSummary = computed(() => {
   // Calculate end date based on months
   endDate.setMonth(endDate.getMonth() + months)
 
+  // Total interest: Principal × Monthly Rate × Number of Months
+  interest = amount * (monthlyRate / 100) * months
+  totalAmount = amount + interest
+
   switch (form.payment_frequency) {
     case 'monthly':
-      // CORRECTED: Monthly interest = Principal × Monthly Rate × Number of Months
-      interest = amount * (monthlyRate / 100) * months
-      totalAmount = amount + interest
       installments = months
       installmentAmount = totalAmount / installments
       break
 
-    // case 'weekly': {
-    //   // CORRECTED: Weekly interest calculation
-    //   // First calculate total interest for the period
-    //   const totalInterest = amount * (monthlyRate / 100) * months
-    //   // Calculate number of weeks accurately
-    //   const startDateObj = new Date(form.start_date)
-    //   const endDateObj = new Date(startDateObj)
-    //   endDateObj.setMonth(startDateObj.getMonth() + months)
-    //   const weeks = getWeeksBetween(startDateObj, endDateObj)
-    //   // Total amount is principal + total interest
-    //   totalAmount = amount + totalInterest
-    //   installments = Math.ceil(weeks)
-    //   installmentAmount = totalAmount / installments
-    //   interest = totalInterest
-    //   break
-    // }
-    case 'weekly': {
-      // CORRECTED: Weekly interest calculation - 1 month = 4 weeks
-      // First calculate total interest for the period
-      const totalInterest = amount * (monthlyRate / 100) * months
-      // Calculate number of weeks: 1 month = 4 weeks
-      const weeks = months * 4
-      // Total amount is principal + total interest
-      totalAmount = amount + totalInterest
-      installments = weeks
+    case 'weekly':
+      installments = months * 4
       installmentAmount = totalAmount / installments
-      interest = totalInterest
       break
-    }
 
     case 'daily': {
-      // CORRECTED: Daily interest calculation
-      // First calculate total interest for the period
-      const totalInterest = amount * (monthlyRate / 100) * months
-      // Calculate number of days accurately
       const startDateDaily = new Date(form.start_date)
       const endDateDaily = new Date(startDateDaily)
       endDateDaily.setMonth(startDateDaily.getMonth() + months)
       const days = getDaysBetween(startDateDaily, endDateDaily)
-      // Total amount is principal + total interest
-      totalAmount = amount + totalInterest
       installments = Math.ceil(days)
       installmentAmount = totalAmount / installments
-      interest = totalInterest
       break
     }
 
     default:
-      interest = amount * (monthlyRate / 100) * months
-      totalAmount = amount + interest
       installments = months
       installmentAmount = totalAmount / installments
   }
@@ -872,7 +889,7 @@ const loanSummary = computed(() => {
   }
 })
 
-// Payment schedule for display
+// Payment schedule generation
 const paymentSchedule = ref([])
 
 const generatePaymentSchedule = () => {
@@ -886,7 +903,6 @@ const generatePaymentSchedule = () => {
   const monthlyRate = parseFloat(form.interest_rate) || 0
   const months = parseInt(form.duration_months) || 0
 
-  // Calculate total interest
   const totalInterest = amount * (monthlyRate / 100) * months
   const totalAmount = amount + totalInterest
 
@@ -897,26 +913,22 @@ const generatePaymentSchedule = () => {
     let paymentDate = new Date(currentDate)
     let paymentAmount = summary.installment_amount
 
-    // Adjust last payment to account for rounding
     if (i === summary.installments) {
       paymentAmount = remainingBalance
     }
 
-    // Calculate interest and principal portions
     let interestPortion = 0
     let principalPortion = 0
 
     switch (form.payment_frequency) {
       case 'monthly':
         paymentDate.setMonth(currentDate.getMonth() + i)
-        // Simple interest method: interest = remaining balance × monthly rate
         interestPortion = remainingBalance * (monthlyRate / 100)
         principalPortion = paymentAmount - interestPortion
         break
 
       case 'weekly':
         paymentDate.setDate(currentDate.getDate() + i * 7)
-        // Weekly interest = remaining balance × (monthly rate / 4.33)
         const weeklyRate = monthlyRate / 4
         interestPortion = remainingBalance * (weeklyRate / 100)
         principalPortion = paymentAmount - interestPortion
@@ -924,7 +936,6 @@ const generatePaymentSchedule = () => {
 
       case 'daily':
         paymentDate.setDate(currentDate.getDate() + i)
-        // Daily interest = remaining balance × (monthly rate / 30)
         const dailyRate = monthlyRate / 30
         interestPortion = remainingBalance * (dailyRate / 100)
         principalPortion = paymentAmount - interestPortion
@@ -961,7 +972,7 @@ const toastIcon = computed(() => {
   return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
 })
 
-// Watch for changes
+// Watch for changes to recalculate
 watch(
   [
     () => form.payment_frequency,
@@ -979,6 +990,12 @@ watch(
 )
 
 // Methods
+const clearCustomerSearch = () => {
+  customerSearch.value = ''
+  searchResults.value = []
+  noResults.value = false
+}
+
 const searchCustomers = debounce(async () => {
   if (!customerSearch.value || customerSearch.value.length < 2) {
     searchResults.value = []
@@ -1046,7 +1063,7 @@ const calculateLoan = () => {
 const calculatePenaltyExample = (months) => {
   const amount = parseFloat(form.amount) || 0
   const penaltyRate = parseFloat(getPenaltyRate.value) || 0
-  return amount * (penaltyRate / 100) * months
+  return Math.round(amount * (penaltyRate / 100) * months)
 }
 
 const generatePaymentDays = () => {
@@ -1080,10 +1097,15 @@ const getCollateralIcon = (type) => {
 
 // Collateral methods
 const addCollateral = () => {
+  if (!newCollateral.name || !newCollateral.value) {
+    showToastMessage('Tafadhali jaza jina na thamani ya dhamana', 'error')
+    return
+  }
+
   form.collaterals.push({
     name: newCollateral.name,
     type: newCollateral.type,
-    value: newCollateral.value,
+    value: parseFloat(newCollateral.value),
     description: newCollateral.description,
   })
 
@@ -1103,7 +1125,7 @@ const removeCollateral = (index) => {
 
 // Guarantor methods
 const searchGuarantors = debounce(async () => {
-  if (!guarantorSearch.value) {
+  if (!guarantorSearch.value || guarantorSearch.value.length < 2) {
     guarantorResults.value = []
     guarantorNoResults.value = false
     return
@@ -1119,19 +1141,20 @@ const searchGuarantors = debounce(async () => {
       },
     })
 
-    if (response.data.success) {
-      const customers = response.data.data.data || []
-      guarantorResults.value = customers.map((c) => ({
-        id: c.id,
-        name: `${c.first_name} ${c.last_name}`,
-        phone: c.phone,
-        relationship: '',
-        photo: c.profile_photo_url,
-      }))
-      guarantorNoResults.value = customers.length === 0
-    }
+    const customers = response.data.data?.data || response.data.data || []
+
+    guarantorResults.value = customers.map((c) => ({
+      id: c.id,
+      name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+      phone: c.phone || '',
+      relationship: '',
+      photo: c.profile_photo_url || c.avatar,
+    }))
+
+    guarantorNoResults.value = customers.length === 0 && guarantorSearch.value.length >= 2
   } catch (error) {
     console.error('Error searching guarantors:', error)
+    guarantorResults.value = []
   } finally {
     guarantorLoading.value = false
   }
@@ -1153,6 +1176,11 @@ const selectGuarantor = (guarantor) => {
 }
 
 const addGuarantor = () => {
+  if (!newGuarantor.name || !newGuarantor.phone) {
+    showToastMessage('Tafadhali jaza jina na namba ya simu ya mdhamini', 'error')
+    return
+  }
+
   form.guarantors.push({
     id: Date.now(),
     name: newGuarantor.name,
@@ -1217,6 +1245,7 @@ const loadLoanData = async () => {
           })
         }
 
+        await nextTick()
         generatePaymentSchedule()
       }
     } catch (error) {
@@ -1231,53 +1260,60 @@ const submitForm = async () => {
   saving.value = true
   errors.value = {}
 
+  // Validation
+  if (!selectedCustomer.value && !form.customer_id) {
+    errors.value.customer = ['Tafadhali chagua mteja']
+  }
+  if (!form.amount || form.amount < 10000) {
+    errors.value.amount = ['Kiasi cha mkopo kinatakiwa kuwa angalau TZS 10,000']
+  }
+  if (form.amount > 50000000) {
+    errors.value.amount = ['Kiasi cha mkopo hakiwezi kuzidi TZS 50,000,000']
+  }
+  if (!form.interest_rate) {
+    errors.value.interest_rate = ['Riba inahitajika']
+  }
+  if (!form.duration_months) {
+    errors.value.duration_months = ['Muda wa mkopo unahitajika']
+  }
+  if (!form.payment_frequency) {
+    errors.value.payment_frequency = ['Muda wa malipo unahitajika']
+  }
+  if (!form.start_date) {
+    errors.value.start_date = ['Tarehe ya kuanza inahitajika']
+  }
+  if (!form.terms_accepted) {
+    errors.value.terms_accepted = ['Lazima ukubali sheria na masharti']
+  }
+
+  if (Object.keys(errors.value).length > 0) {
+    saving.value = false
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+
+  if (!form.payment_days) {
+    generatePaymentDays()
+  }
+
+  const loanData = {
+    customer_id: form.customer_id,
+    amount: parseFloat(form.amount),
+    interest_rate: parseFloat(form.interest_rate),
+    penalty_rate:
+      form.penalty_rate !== null && form.penalty_rate !== ''
+        ? parseFloat(form.penalty_rate)
+        : parseFloat(form.interest_rate),
+    grace_period: parseInt(form.grace_period) || 0,
+    duration_months: parseInt(form.duration_months),
+    payment_frequency: form.payment_frequency,
+    payment_days: form.payment_days,
+    start_date: form.start_date,
+    purpose: form.purpose || null,
+    notes: form.notes || null,
+  }
+
   try {
-    if (!selectedCustomer.value && !form.customer_id) {
-      errors.value.customer = ['Tafadhali chagua mteja']
-    }
-    if (!form.amount || form.amount < 10000) {
-      errors.value.amount = ['Kiasi cha mkopo kinatakiwa kuwa angalau TZS 10,000']
-    }
-    if (!form.interest_rate) {
-      errors.value.interest_rate = ['Riba inahitajika']
-    }
-    if (!form.duration_months) {
-      errors.value.duration_months = ['Muda wa mkopo unahitajika']
-    }
-    if (!form.start_date) {
-      errors.value.start_date = ['Tarehe ya kuanza inahitajika']
-    }
-    if (!form.terms_accepted) {
-      errors.value.terms_accepted = ['Lazima ukubali sheria na masharti']
-    }
-
-    if (Object.keys(errors.value).length > 0) {
-      saving.value = false
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return
-    }
-
-    if (!form.payment_days) {
-      generatePaymentDays()
-    }
-
-    const loanData = {
-      customer_id: form.customer_id,
-      amount: parseFloat(form.amount),
-      interest_rate: parseFloat(form.interest_rate),
-      penalty_rate:
-        form.penalty_rate !== null && form.penalty_rate !== ''
-          ? parseFloat(form.penalty_rate)
-          : parseFloat(form.interest_rate),
-      grace_period: parseInt(form.grace_period) || 0,
-      duration_months: parseInt(form.duration_months),
-      payment_frequency: form.payment_frequency,
-      payment_days: form.payment_days,
-      start_date: form.start_date,
-      purpose: form.purpose || null,
-      notes: form.notes || null,
-    }
-
     let response
 
     if (props.isEdit && props.loanId) {
@@ -1287,12 +1323,14 @@ const submitForm = async () => {
     }
 
     if (response.data.success) {
+      const loanId = response.data.data.id
+
       if (form.collaterals.length > 0) {
-        await saveCollaterals(response.data.data.id)
+        await saveCollaterals(loanId)
       }
 
       if (form.guarantors.length > 0) {
-        await saveGuarantors(response.data.data.id)
+        await saveGuarantors(loanId)
       }
 
       showToastMessage(
@@ -1369,7 +1407,6 @@ const saveGuarantors = async (loanId) => {
 
   try {
     await Promise.all(savePromises)
-    showToastMessage('Wadhamini wamehifadhiwa kwa mafanikio', 'success')
   } catch (error) {
     console.error('Error saving guarantors:', error)
     showToastMessage('Hitilafu katika kuhifadhi wadhamini', 'error')
@@ -1378,11 +1415,13 @@ const saveGuarantors = async (loanId) => {
 
 // Toast
 const showToastMessage = (message, type = 'success') => {
+  if (toastTimeout) clearTimeout(toastTimeout)
+
   toastMessage.value = message
   toastType.value = type
   showToast.value = true
 
-  setTimeout(() => {
+  toastTimeout = setTimeout(() => {
     showToast.value = false
   }, 3000)
 }
@@ -1418,6 +1457,141 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* All your existing styles remain exactly the same */
+/* I've only added a few new styles below for the improvements */
+
+/* Divider with "OR" text */
+.divider-text {
+  text-align: center;
+  margin: 20px 0;
+  position: relative;
+}
+
+.divider-text::before,
+.divider-text::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 45%;
+  height: 1px;
+  background: #eef2f6;
+}
+
+.divider-text::before {
+  left: 0;
+}
+
+.divider-text::after {
+  right: 0;
+}
+
+.divider-text span {
+  background: white;
+  padding: 0 15px;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+/* Payment schedule table */
+.payment-preview {
+  margin-top: 20px;
+}
+
+.btn-toggle-schedule {
+  width: 100%;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+
+.btn-toggle-schedule:hover {
+  background: #eef2f6;
+  color: #333;
+}
+
+.payment-schedule-table {
+  margin-top: 15px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.payment-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.payment-table th,
+.payment-table td {
+  padding: 10px;
+  text-align: right;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.payment-table th:first-child,
+.payment-table td:first-child {
+  text-align: center;
+}
+
+.payment-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #666;
+}
+
+.more-payments td {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  background: #f8fafc;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Toast transition */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* Form group spacing improvements */
+.form-group {
+  margin-bottom: 20px;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .payment-table {
+    font-size: 0.75rem;
+  }
+
+  .payment-table th,
+  .payment-table td {
+    padding: 8px 5px;
+  }
+}
+
 .loan-form-container {
   padding: 20px;
   max-width: 1000px;

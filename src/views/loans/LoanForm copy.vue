@@ -224,6 +224,9 @@
           </span>
         </div>
 
+        <!-- Payment Days -->
+        <!-- <input type="text" value="{{ loanSummary.installments }}" /> -->
+
         <!-- Start Date -->
         <div class="form-group required">
           <label for="start_date">
@@ -676,7 +679,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import debounce from 'lodash/debounce'
@@ -686,8 +689,8 @@ const route = useRoute()
 const router = useRouter()
 
 // API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-// const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
 
 // Props
 const props = defineProps({
@@ -728,8 +731,8 @@ const form = reactive({
   customer_id: null,
   amount: '',
   interest_rate: null,
-  penalty_rate: null, // Riba ya kuchelewa (ikiachwa wazi, itakuwa sawa na interest_rate)
-  grace_period: 0, // Siku za mapumziko kabla ya riba ya kuchelewa kuanza
+  penalty_rate: null,
+  grace_period: 0,
   duration_months: '',
   payment_frequency: null,
   payment_days: null,
@@ -763,7 +766,20 @@ const getPenaltyRate = computed(() => {
     : form.interest_rate || 10
 })
 
-// Loan calculation
+// CORRECTED: Helper function to calculate exact weeks between dates
+const getWeeksBetween = (startDate, endDate) => {
+  const diffTime = Math.abs(endDate - startDate)
+  const diffDays = diffTime / (1000 * 60 * 60 * 24)
+  return diffDays / 7
+}
+
+// CORRECTED: Helper function to calculate exact days between dates
+const getDaysBetween = (startDate, endDate) => {
+  const diffTime = Math.abs(endDate - startDate)
+  return diffTime / (1000 * 60 * 60 * 24)
+}
+
+// CORRECTED: Loan calculation with proper interest formula
 const loanCalculated = computed(() => {
   return form.amount && form.interest_rate && form.duration_months && form.start_date
 })
@@ -772,38 +788,161 @@ const loanSummary = computed(() => {
   if (!loanCalculated.value) return {}
 
   const amount = parseFloat(form.amount) || 0
-  const rate = parseFloat(form.interest_rate) || 0
+  const monthlyRate = parseFloat(form.interest_rate) || 0
   const months = parseInt(form.duration_months) || 0
 
-  // Riba inahesabiwa kwa mwezi
-  const interest = amount * (rate / 100) * months
-  const totalAmount = amount + interest
+  let interest = 0
+  let totalAmount = 0
+  let installments = 0
+  let installmentAmount = 0
+  let endDate = new Date(form.start_date)
 
-  let installments = months
-  if (form.payment_frequency === 'weekly') {
-    installments = months * 4
-  } else if (form.payment_frequency === 'daily') {
-    installments = months * 30
+  // Calculate end date based on months
+  endDate.setMonth(endDate.getMonth() + months)
+
+  switch (form.payment_frequency) {
+    case 'monthly':
+      // CORRECTED: Monthly interest = Principal × Monthly Rate × Number of Months
+      interest = amount * (monthlyRate / 100) * months
+      totalAmount = amount + interest
+      installments = months
+      installmentAmount = totalAmount / installments
+      break
+
+    // case 'weekly': {
+    //   // CORRECTED: Weekly interest calculation
+    //   // First calculate total interest for the period
+    //   const totalInterest = amount * (monthlyRate / 100) * months
+    //   // Calculate number of weeks accurately
+    //   const startDateObj = new Date(form.start_date)
+    //   const endDateObj = new Date(startDateObj)
+    //   endDateObj.setMonth(startDateObj.getMonth() + months)
+    //   const weeks = getWeeksBetween(startDateObj, endDateObj)
+    //   // Total amount is principal + total interest
+    //   totalAmount = amount + totalInterest
+    //   installments = Math.ceil(weeks)
+    //   installmentAmount = totalAmount / installments
+    //   interest = totalInterest
+    //   break
+    // }
+    case 'weekly': {
+      // CORRECTED: Weekly interest calculation - 1 month = 4 weeks
+      // First calculate total interest for the period
+      const totalInterest = amount * (monthlyRate / 100) * months
+      // Calculate number of weeks: 1 month = 4 weeks
+      const weeks = months * 4
+      // Total amount is principal + total interest
+      totalAmount = amount + totalInterest
+      installments = weeks
+      installmentAmount = totalAmount / installments
+      interest = totalInterest
+      break
+    }
+
+    case 'daily': {
+      // CORRECTED: Daily interest calculation
+      // First calculate total interest for the period
+      const totalInterest = amount * (monthlyRate / 100) * months
+      // Calculate number of days accurately
+      const startDateDaily = new Date(form.start_date)
+      const endDateDaily = new Date(startDateDaily)
+      endDateDaily.setMonth(startDateDaily.getMonth() + months)
+      const days = getDaysBetween(startDateDaily, endDateDaily)
+      // Total amount is principal + total interest
+      totalAmount = amount + totalInterest
+      installments = Math.ceil(days)
+      installmentAmount = totalAmount / installments
+      interest = totalInterest
+      break
+    }
+
+    default:
+      interest = amount * (monthlyRate / 100) * months
+      totalAmount = amount + interest
+      installments = months
+      installmentAmount = totalAmount / installments
   }
 
-  const installmentAmount = totalAmount / installments
-
-  // Calculate end date
-  const startDate = new Date(form.start_date)
-  const endDate = new Date(startDate)
-  endDate.setMonth(startDate.getMonth() + months)
-
-  // Generate payment days based on frequency
-  generatePaymentDays()
-
   return {
-    interest,
-    total_amount: totalAmount,
-    installments,
-    installment_amount: installmentAmount,
+    interest: Math.round(interest),
+    total_amount: Math.round(totalAmount),
+    installments: Math.ceil(installments),
+    installment_amount: Math.round(installmentAmount),
     end_date: endDate.toISOString().split('T')[0],
   }
 })
+
+// Payment schedule for display
+const paymentSchedule = ref([])
+
+const generatePaymentSchedule = () => {
+  if (!loanCalculated.value) return
+
+  const summary = loanSummary.value
+  if (!summary.installments) return
+
+  paymentSchedule.value = []
+  const amount = parseFloat(form.amount) || 0
+  const monthlyRate = parseFloat(form.interest_rate) || 0
+  const months = parseInt(form.duration_months) || 0
+
+  // Calculate total interest
+  const totalInterest = amount * (monthlyRate / 100) * months
+  const totalAmount = amount + totalInterest
+
+  let currentDate = new Date(form.start_date)
+  let remainingBalance = totalAmount
+
+  for (let i = 1; i <= summary.installments; i++) {
+    let paymentDate = new Date(currentDate)
+    let paymentAmount = summary.installment_amount
+
+    // Adjust last payment to account for rounding
+    if (i === summary.installments) {
+      paymentAmount = remainingBalance
+    }
+
+    // Calculate interest and principal portions
+    let interestPortion = 0
+    let principalPortion = 0
+
+    switch (form.payment_frequency) {
+      case 'monthly':
+        paymentDate.setMonth(currentDate.getMonth() + i)
+        // Simple interest method: interest = remaining balance × monthly rate
+        interestPortion = remainingBalance * (monthlyRate / 100)
+        principalPortion = paymentAmount - interestPortion
+        break
+
+      case 'weekly':
+        paymentDate.setDate(currentDate.getDate() + i * 7)
+        // Weekly interest = remaining balance × (monthly rate / 4.33)
+        const weeklyRate = monthlyRate / 4
+        interestPortion = remainingBalance * (weeklyRate / 100)
+        principalPortion = paymentAmount - interestPortion
+        break
+
+      case 'daily':
+        paymentDate.setDate(currentDate.getDate() + i)
+        // Daily interest = remaining balance × (monthly rate / 30)
+        const dailyRate = monthlyRate / 30
+        interestPortion = remainingBalance * (dailyRate / 100)
+        principalPortion = paymentAmount - interestPortion
+        break
+    }
+
+    remainingBalance -= principalPortion
+
+    paymentSchedule.value.push({
+      number: i,
+      due_date: paymentDate.toISOString().split('T')[0],
+      amount: Math.round(paymentAmount),
+      principal: Math.round(principalPortion),
+      interest: Math.round(interestPortion),
+      remaining_balance: Math.max(0, Math.round(remainingBalance)),
+    })
+  }
+}
 
 const getFrequencyText = computed(() => {
   const texts = {
@@ -821,6 +960,23 @@ const today = computed(() => {
 const toastIcon = computed(() => {
   return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
 })
+
+// Watch for changes
+watch(
+  [
+    () => form.payment_frequency,
+    () => form.duration_months,
+    () => form.amount,
+    () => form.interest_rate,
+    () => form.start_date,
+  ],
+  () => {
+    if (loanCalculated.value) {
+      generatePaymentSchedule()
+    }
+  },
+  { deep: true },
+)
 
 // Methods
 const searchCustomers = debounce(async () => {
@@ -863,14 +1019,9 @@ const searchCustomers = debounce(async () => {
     noResults.value = searchResults.value.length === 0
   } catch (error) {
     console.error('Error searching customers:', error)
-    if (import.meta.env.DEV) {
-      searchResults.value = []
-      noResults.value = false
-    } else {
-      showToastMessage('Hitilafu katika kutafuta wateja', 'error')
-      searchResults.value = []
-      noResults.value = true
-    }
+    showToastMessage('Hitilafu katika kutafuta wateja', 'error')
+    searchResults.value = []
+    noResults.value = true
   } finally {
     customersLoading.value = false
   }
@@ -889,7 +1040,7 @@ const changeCustomer = () => {
 }
 
 const calculateLoan = () => {
-  // Trigger computation
+  generatePaymentSchedule()
 }
 
 const calculatePenaltyExample = (months) => {
@@ -1038,7 +1189,7 @@ const loadLoanData = async () => {
         form.penalty_rate = loan.penalty_rate
         form.grace_period = loan.grace_period || 0
         form.duration_months = loan.duration_months
-        form.payment_frequency = loan.payment_frequency
+        form.payment_frequency = loan.payment_frequency || 'monthly'
         form.payment_days = loan.payment_days
         form.start_date = loan.start_date?.split('T')[0] || ''
         form.purpose = loan.purpose || ''
@@ -1065,6 +1216,8 @@ const loadLoanData = async () => {
             description: loan.collateral.description,
           })
         }
+
+        generatePaymentSchedule()
       }
     } catch (error) {
       console.error('Error loading loan:', error)
@@ -1079,7 +1232,6 @@ const submitForm = async () => {
   errors.value = {}
 
   try {
-    // Validate
     if (!selectedCustomer.value && !form.customer_id) {
       errors.value.customer = ['Tafadhali chagua mteja']
     }
@@ -1188,25 +1340,10 @@ const saveCollaterals = async (loanId) => {
         image_path: 'none',
       }
 
-      const response = await axios.post(`${API_URL}/collaterals`, collateralData)
-
-      if (response.data.success) {
-        showToastMessage('Dhamana imehifadhiwa', 'success')
-      }
+      await axios.post(`${API_URL}/collaterals`, collateralData)
     } catch (error) {
       console.error('Error saving collateral:', error)
-      let errorMessage = 'Hitilafu katika kuhifadhi dhamana'
-
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message
-      }
-
-      if (error.response?.data?.errors) {
-        const errors = Object.values(error.response.data.errors).flat()
-        errorMessage = errors.join(', ')
-      }
-
-      showToastMessage(errorMessage, 'error')
+      showToastMessage('Hitilafu katika kuhifadhi dhamana', 'error')
     }
   }
 }
@@ -1231,25 +1368,11 @@ const saveGuarantors = async (loanId) => {
   })
 
   try {
-    const responses = await Promise.all(savePromises)
-
-    const allSuccessful = responses.every((res) => res.data.success)
-
-    if (allSuccessful) {
-      showToastMessage('Wadhamini wote wamehifadhiwa kwa mafanikio', 'success')
-    } else {
-      showToastMessage('Baadhi ya wadhamini walishindwa kuhifadhiwa', 'warning')
-    }
+    await Promise.all(savePromises)
+    showToastMessage('Wadhamini wamehifadhiwa kwa mafanikio', 'success')
   } catch (error) {
     console.error('Error saving guarantors:', error)
-
-    let errorMessage = 'Hitilafu katika kuhifadhi wadhamini'
-
-    if (error.response?.data?.message) {
-      errorMessage = error.response.data.message
-    }
-
-    showToastMessage(errorMessage, 'error')
+    showToastMessage('Hitilafu katika kuhifadhi wadhamini', 'error')
   }
 }
 

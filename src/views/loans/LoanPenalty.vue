@@ -40,7 +40,6 @@
 
       <div v-show="showFilters" class="filters-body">
         <div class="filters-grid">
-          <!-- Search -->
           <div class="filter-group">
             <label>
               <i class="fas fa-search"></i>
@@ -50,12 +49,11 @@
               type="text"
               v-model="filters.search"
               @input="debouncedSearch"
-              placeholder="Namba ya mkopo, jina la mteja, simu..."
+              placeholder="Namba ya mkopo, jina la mteja..."
               class="form-control"
             />
           </div>
 
-          <!-- Date Range -->
           <div class="filter-group">
             <label>
               <i class="fas fa-calendar"></i>
@@ -77,36 +75,6 @@
             <input type="date" v-model="filters.date_to" @change="loadLoans" class="form-control" />
           </div>
 
-          <!-- Amount Range -->
-          <div class="filter-group">
-            <label>
-              <i class="fas fa-money-bill"></i>
-              Kiasi cha Chini
-            </label>
-            <input
-              type="number"
-              v-model="filters.min_amount"
-              @input="debouncedFilter"
-              placeholder="0"
-              class="form-control"
-            />
-          </div>
-
-          <div class="filter-group">
-            <label>
-              <i class="fas fa-money-bill"></i>
-              Kiasi cha Juu
-            </label>
-            <input
-              type="number"
-              v-model="filters.max_amount"
-              @input="debouncedFilter"
-              placeholder="10000000"
-              class="form-control"
-            />
-          </div>
-
-          <!-- Sort -->
           <div class="filter-group">
             <label>
               <i class="fas fa-sort"></i>
@@ -131,7 +99,6 @@
             </select>
           </div>
 
-          <!-- Per Page -->
           <div class="filter-group">
             <label>
               <i class="fas fa-list"></i>
@@ -168,16 +135,6 @@
               Mpaka: {{ formatDate(filters.date_to) }}
               <i @click="clearFilter('date_to')" class="fas fa-times remove-filter"></i>
             </span>
-            <span v-if="filters.min_amount" class="filter-tag">
-              <i class="fas fa-money-bill"></i>
-              ≥ {{ formatCurrency(filters.min_amount) }}
-              <i @click="clearFilter('min_amount')" class="fas fa-times remove-filter"></i>
-            </span>
-            <span v-if="filters.max_amount" class="filter-tag">
-              <i class="fas fa-money-bill"></i>
-              ≤ {{ formatCurrency(filters.max_amount) }}
-              <i @click="clearFilter('max_amount')" class="fas fa-times remove-filter"></i>
-            </span>
             <button @click="clearAllFilters" class="clear-all-btn">
               <i class="fas fa-trash-alt"></i>
               Futa yote
@@ -204,31 +161,27 @@
       </button>
     </div>
 
-    <!-- Loans Table -->
+    <!-- Loans Table - Simplified -->
     <div v-else class="table-card">
       <div class="table-responsive">
         <table class="loans-table">
           <thead>
             <tr>
-              <th style="width: 50px"></th>
-              <th>Namba ya Mkopo</th>
+              <th style="width: 40px"></th>
+              <th>No ya Mkopo</th>
               <th>Mteja</th>
               <th>Kiasi cha Mkopo</th>
-              <th>Jumla ya Marejesho</th>
-              <th>Kiasi Kilicholipwa</th>
-              <th>Salio</th>
-              <th>Muda</th>
-              <th>Tarehe ya Kukamilika</th>
-              <th>Siku Zilizopitiliza</th>
+              <th>Marejesho + Riba</th>
+              <th>Malipo</th>
               <th>Adhabu</th>
+              <th>Tarehe ya Adhabu</th>
               <th>Vitendo</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="loan in loans" :key="loan.id">
               <!-- Main Row -->
-              <tr class="main-row" :class="{ expanded: expandedRows[loan.id], overdue: true }">
-                <!-- Expand button column -->
+              <tr class="main-row" :class="{ expanded: expandedRows[loan.id] }">
                 <td @click.stop>
                   <button
                     @click="toggleDetails(loan.id)"
@@ -237,23 +190,15 @@
                   >
                     <i
                       class="fas"
-                      :class="
-                        expandedRows[loan.id] ? 'fa-chevron-circle-up' : 'fa-chevron-circle-down'
-                      "
+                      :class="expandedRows[loan.id] ? 'fa-chevron-up' : 'fa-chevron-down'"
                     ></i>
                   </button>
                 </td>
-
                 <td @click="viewLoan(loan)">
                   <span class="loan-number">#{{ loan.loan_number }}</span>
                 </td>
                 <td @click="viewLoan(loan)">
                   <div class="customer-cell">
-                    <img
-                      :src="loan.customer?.profile_photo_url || '/default-avatar.png'"
-                      :alt="loan.customer?.full_name"
-                      class="customer-avatar"
-                    />
                     <div class="customer-info">
                       <span class="customer-name">{{ loan.customer?.full_name }}</span>
                       <span class="customer-phone">{{ loan.customer?.phone }}</span>
@@ -264,38 +209,22 @@
                   <span class="amount">{{ formatCurrency(loan.amount) }}</span>
                 </td>
                 <td @click="viewLoan(loan)">
-                  <span class="total">{{ formatCurrency(loan.total_amount) }}</span>
+                  <span class="balance">{{
+                    formatCurrency(loan.balance || loan.total_amount - (loan.total_paid || 0))
+                  }}</span>
                 </td>
                 <td @click="viewLoan(loan)">
-                  <span class="paid">{{ formatCurrency(loan.total_paid || 0) }}</span>
+                  <span class="balance">-</span>
                 </td>
                 <td @click="viewLoan(loan)">
-                  <span
-                    class="balance"
-                    :class="{ 'negative-balance': loan.total_amount - (loan.total_paid || 0) < 0 }"
-                  >
-                    {{ formatCurrency((loan.total_amount || 0) - (loan.total_paid || 0)) }}
+                  <span class="penalty-amount" v-if="loan.total_penalty > 0">
+                    {{ formatCurrency(loan.total_penalty) }}
                   </span>
+                  <span v-else class="no-penalty">-</span>
                 </td>
                 <td @click="viewLoan(loan)">
-                  <span class="duration">{{ loan.duration_months }} miezi</span>
-                </td>
-                <td @click="viewLoan(loan)">
-                  <div class="date-info">
-                    <span class="date">{{ formatDate(loan.due_date) }}</span>
-                  </div>
-                </td>
-                <td @click="viewLoan(loan)">
-                  <div class="overdue-info">
-                    <span class="overdue-days" :class="getOverdueClass(loan.days_overdue)">
-                      <i class="fas fa-exclamation-triangle"></i>
-                      {{ formatOverdueDays(loan.days_overdue) }}
-                    </span>
-                  </div>
-                </td>
-                <td @click="viewLoan(loan)">
-                  <span class="penalty-amount" v-if="loan.penalty_amount > 0">
-                    {{ formatCurrency(loan.penalty_amount) }}
+                  <span v-if="loan.last_penalty_calculation" class="penalty-date">
+                    {{ formatDate(loan.last_penalty_calculation) }}
                   </span>
                   <span v-else class="no-penalty">-</span>
                 </td>
@@ -339,13 +268,84 @@
                 </td>
               </tr>
 
-              <!-- Expanded Details Row -->
+              <!-- Expanded Details Row - All detailed info here -->
               <tr v-if="expandedRows[loan.id]" class="expanded-details-row">
-                <td colspan="12">
+                <td colspan="8">
                   <div class="expanded-details">
                     <div class="details-grid">
+                      <!-- Payment Info -->
+                      <div class="detail-item">
+                        <span class="detail-label">
+                          <i class="fas fa-money-bill"></i>
+                          Jumla ya Marejesho
+                        </span>
+                        <span class="detail-value">{{ formatCurrency(loan.total_amount) }}</span>
+                      </div>
+
+                      <div class="detail-item">
+                        <span class="detail-label">
+                          <i class="fas fa-check-circle"></i>
+                          Kiasi Kilicholipwa
+                        </span>
+                        <span class="detail-value paid">{{
+                          formatCurrency(loan.total_paid || 0)
+                        }}</span>
+                      </div>
+
+                      <div class="detail-item">
+                        <span class="detail-label">
+                          <i class="fas fa-clock"></i>
+                          Siku Zilizopitiliza
+                        </span>
+                        <span class="detail-value" :class="getOverdueClass(loan.days_overdue)">
+                          {{ formatOverdueDays(loan.days_overdue) }}
+                        </span>
+                      </div>
+
+                      <div class="detail-item">
+                        <span class="detail-label">
+                          <i class="fas fa-percent"></i>
+                          Riba
+                        </span>
+                        <span class="detail-value">{{ loan.interest_rate }}%</span>
+                      </div>
+
+                      <div class="detail-item">
+                        <span class="detail-label">
+                          <i class="fas fa-exclamation-triangle"></i>
+                          Kiwango cha Adhabu
+                        </span>
+                        <span class="detail-value">{{ loan.penalty_rate || 0 }}%</span>
+                      </div>
+
+                      <div class="detail-item">
+                        <span class="detail-label">
+                          <i class="fas fa-calendar"></i>
+                          Tarehe ya Kukamilika
+                        </span>
+                        <span class="detail-value">{{ formatDate(loan.due_date) }}</span>
+                      </div>
+
+                      <div class="detail-item">
+                        <span class="detail-label">
+                          <i class="fas fa-calendar-alt"></i>
+                          Muda
+                        </span>
+                        <span class="detail-value">{{ loan.duration_months }} miezi</span>
+                      </div>
+
+                      <div class="detail-item" v-if="loan.next_payment_due_date">
+                        <span class="detail-label">
+                          <i class="fas fa-clock"></i>
+                          Malipo Yajayo
+                        </span>
+                        <span class="detail-value">{{
+                          formatDate(loan.next_payment_due_date)
+                        }}</span>
+                      </div>
+
                       <!-- Payment Schedule Summary -->
-                      <div class="detail-item full-width">
+                      <div class="detail-item full-width" v-if="loan.payment_schedule">
                         <span class="detail-label">
                           <i class="fas fa-calendar-alt"></i>
                           Ratiba ya Malipo
@@ -378,48 +378,8 @@
                         </div>
                       </div>
 
-                      <!-- Riba -->
-                      <div class="detail-item">
-                        <span class="detail-label">
-                          <i class="fas fa-percent"></i>
-                          Riba
-                        </span>
-                        <span class="detail-value interest-rate">{{ loan.interest_rate }}%</span>
-                      </div>
-
-                      <!-- Penalty Rate -->
-                      <div class="detail-item">
-                        <span class="detail-label">
-                          <i class="fas fa-exclamation-circle"></i>
-                          Kiwango cha Adhabu
-                        </span>
-                        <span class="detail-value">{{ loan.penalty_rate || 0 }}% / siku</span>
-                      </div>
-
-                      <!-- Total Penalty -->
-                      <div class="detail-item">
-                        <span class="detail-label">
-                          <i class="fas fa-coins"></i>
-                          Jumla ya Adhabu
-                        </span>
-                        <span class="detail-value penalty">{{
-                          formatCurrency(loan.total_penalty || loan.penalty_amount || 0)
-                        }}</span>
-                      </div>
-
-                      <!-- Next Payment -->
-                      <div class="detail-item" v-if="loan.next_payment_due_date">
-                        <span class="detail-label">
-                          <i class="fas fa-clock"></i>
-                          Malipo Yajayo
-                        </span>
-                        <span class="detail-value">{{
-                          formatDate(loan.next_payment_due_date)
-                        }}</span>
-                      </div>
-
                       <!-- Notes -->
-                      <div class="detail-item" v-if="loan.notes">
+                      <div class="detail-item full-width" v-if="loan.notes">
                         <span class="detail-label">
                           <i class="fas fa-sticky-note"></i>
                           Maelezo
@@ -434,7 +394,7 @@
 
             <!-- Empty State -->
             <tr v-if="loans.length === 0">
-              <td colspan="12" class="text-center">
+              <td colspan="8" class="text-center">
                 <div class="empty-state-small">
                   <i class="fas fa-check-circle"></i>
                   <p>Hakuna mikopo iliyopitiliza</p>
@@ -448,7 +408,7 @@
       <!-- Pagination -->
       <div class="pagination" v-if="pagination.lastPage > 1">
         <div class="pagination-info">
-          Showing {{ pagination.from }} - {{ pagination.to }} of {{ pagination.total }} entries
+          Inaonyesha {{ pagination.from }} - {{ pagination.to }} kati ya {{ pagination.total }}
         </div>
         <div class="pagination-buttons">
           <button
@@ -458,7 +418,6 @@
           >
             <i class="fas fa-chevron-left"></i>
           </button>
-
           <button
             v-for="page in paginationPages"
             :key="page"
@@ -468,7 +427,6 @@
           >
             {{ page }}
           </button>
-
           <button
             @click="changePage(pagination.currentPage + 1)"
             :disabled="pagination.currentPage === pagination.lastPage"
@@ -484,9 +442,7 @@
     <div v-if="showReminderModal" class="modal-overlay" @click="closeReminderModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <div class="modal-icon info">
-            <i class="fas fa-bell"></i>
-          </div>
+          <div class="modal-icon info"><i class="fas fa-bell"></i></div>
           <h3>Tuma Kikumbusho</h3>
           <button class="close-btn" @click="closeReminderModal">
             <i class="fas fa-times"></i>
@@ -499,10 +455,9 @@
             <p><strong>Mteja:</strong> {{ selectedLoan.customer?.full_name }}</p>
             <p><strong>Simu:</strong> {{ selectedLoan.customer?.phone }}</p>
             <p>
-              <strong>Kiasi Kilichopitiliza:</strong>
-              {{ formatCurrency(selectedLoan.overdue_amount || 0) }}
+              <strong>Kiasi cha Adhabu:</strong>
+              {{ formatCurrency(selectedLoan.penalty_amount || 0) }}
             </p>
-            <p><strong>Siku Zilizopitiliza:</strong> {{ selectedLoan.days_overdue || 0 }}</p>
           </div>
           <div class="form-group">
             <label for="reminder_message">Ujumbe (si lazima)</label>
@@ -519,10 +474,7 @@
           <button @click="closeReminderModal" class="btn-secondary">Ghairi</button>
           <button @click="confirmSendReminder" class="btn-info" :disabled="actionLoading">
             <span v-if="actionLoading" class="spinner"></span>
-            <span v-else>
-              <i class="fas fa-paper-plane"></i>
-              Tuma Kikumbusho
-            </span>
+            <span v-else><i class="fas fa-paper-plane"></i> Tuma Kikumbusho</span>
           </button>
         </div>
       </div>
@@ -532,13 +484,9 @@
     <div v-if="showWaiveModal" class="modal-overlay" @click="closeWaiveModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <div class="modal-icon success">
-            <i class="fas fa-gift"></i>
-          </div>
+          <div class="modal-icon success"><i class="fas fa-gift"></i></div>
           <h3>Ondoa Adhabu</h3>
-          <button class="close-btn" @click="closeWaiveModal">
-            <i class="fas fa-times"></i>
-          </button>
+          <button class="close-btn" @click="closeWaiveModal"><i class="fas fa-times"></i></button>
         </div>
         <div class="modal-body">
           <p>Una uhakika unataka kuondoa adhabu kwa mkopo huu?</p>
@@ -565,10 +513,7 @@
           <button @click="closeWaiveModal" class="btn-secondary">Ghairi</button>
           <button @click="confirmWaivePenalty" class="btn-success" :disabled="actionLoading">
             <span v-if="actionLoading" class="spinner"></span>
-            <span v-else>
-              <i class="fas fa-check"></i>
-              Ndiyo, Ondoa Adhabu
-            </span>
+            <span v-else><i class="fas fa-check"></i> Ndiyo, Ondoa Adhabu</span>
           </button>
         </div>
       </div>
@@ -590,10 +535,7 @@ import debounce from 'lodash/debounce'
 import axios from 'axios'
 
 const router = useRouter()
-
-// const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
-
-const API_URL = import.meta.env.VITE_API_URL || 'https://web.bas.co.tz/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1'
 
 // State
 const loans = ref([])
@@ -609,8 +551,6 @@ const showReminderModal = ref(false)
 const showWaiveModal = ref(false)
 const activeActionMenu = ref(null)
 const actionDropdownRefs = ref({})
-
-// State for expanded rows
 const expandedRows = ref({})
 
 // Toast
@@ -623,8 +563,6 @@ const filters = reactive({
   search: '',
   date_from: '',
   date_to: '',
-  min_amount: '',
-  max_amount: '',
   sortBy: 'due_date',
   sortOrder: 'desc',
   perPage: 10,
@@ -668,23 +606,12 @@ const loanStatistics = ref([
 ])
 
 // Computed
-const hasActiveFilters = computed(() => {
-  return (
-    filters.search ||
-    filters.date_from ||
-    filters.date_to ||
-    filters.min_amount ||
-    filters.max_amount
-  )
-})
-
+const hasActiveFilters = computed(() => filters.search || filters.date_from || filters.date_to)
 const activeFilterCount = computed(() => {
   let count = 0
   if (filters.search) count++
   if (filters.date_from) count++
   if (filters.date_to) count++
-  if (filters.min_amount) count++
-  if (filters.max_amount) count++
   return count
 })
 
@@ -693,37 +620,23 @@ const paginationPages = computed(() => {
   const maxVisible = 5
   let start = Math.max(1, pagination.currentPage - Math.floor(maxVisible / 2))
   let end = Math.min(pagination.lastPage, start + maxVisible - 1)
-
-  if (end - start + 1 < maxVisible) {
-    start = Math.max(1, end - maxVisible + 1)
-  }
-
-  for (let i = start; i <= end; i++) {
-    pages.push(i)
-  }
-
+  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
+  for (let i = start; i <= end; i++) pages.push(i)
   return pages
 })
 
-const toastIcon = computed(() => {
-  return toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
-})
+const toastIcon = computed(() =>
+  toastType.value === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle',
+)
 
 // Helper Methods
-const formatNumber = (value) => {
-  if (typeof value === 'number') {
-    return value.toLocaleString()
-  }
-  return value
-}
+const formatNumber = (value) => (typeof value === 'number' ? value.toLocaleString() : value)
 
 const formatOverdueDays = (days) => {
-  if (days === null || days === undefined) return ''
-  const numDays = Number(days)
-  if (isNaN(numDays)) return ''
-  if (numDays === 0) return 'Siku ya leo'
-  if (numDays === 1) return 'Siku 1'
-  return `Siku ${Math.round(numDays)}`
+  if (!days && days !== 0) return ''
+  if (days === 0) return 'Siku ya leo'
+  if (days === 1) return 'Siku 1'
+  return `Siku ${Math.round(days)}`
 }
 
 const getOverdueClass = (days) => {
@@ -735,28 +648,20 @@ const getOverdueClass = (days) => {
   return 'overdue-critical'
 }
 
-const getPaidInstallmentsCount = (loan) => {
-  if (!loan.payment_schedule) return 0
-  return loan.payment_schedule.filter((p) => p.status === 'paid').length
-}
-
-const getOverdueInstallmentsCount = (loan) => {
-  if (!loan.payment_schedule) return 0
-  return loan.payment_schedule.filter((p) => p.status === 'overdue').length
-}
-
+const getPaidInstallmentsCount = (loan) =>
+  loan.payment_schedule?.filter((p) => p.status === 'paid').length || 0
+const getOverdueInstallmentsCount = (loan) =>
+  loan.payment_schedule?.filter((p) => p.status === 'overdue').length || 0
 const getPaymentProgress = (loan) => {
   const total = loan.total_amount || 0
   const paid = loan.total_paid || 0
-  if (total === 0) return 0
-  return Math.min((paid / total) * 100, 100)
+  return total === 0 ? 0 : Math.min((paid / total) * 100, 100)
 }
 
 // Methods
 const loadLoans = async () => {
   loading.value = true
   error.value = null
-
   try {
     const params = {
       page: filters.page,
@@ -765,34 +670,25 @@ const loadLoans = async () => {
       sort_order: filters.sortOrder,
       status: 'overdue',
     }
-
     if (filters.search) params.search = filters.search
     if (filters.date_from) params.date_from = filters.date_from
     if (filters.date_to) params.date_to = filters.date_to
-    if (filters.min_amount) params.min_amount = filters.min_amount
-    if (filters.max_amount) params.max_amount = filters.max_amount
 
     const response = await axios.get(`${API_URL}/overdue`, { params })
-
     if (response.data.success) {
       const responseData = response.data.data
-
       loans.value = responseData.data || []
-
       pagination.currentPage = responseData.current_page || 1
       pagination.lastPage = responseData.last_page || 1
       pagination.perPage = responseData.per_page || filters.perPage
       pagination.total = responseData.total || 0
       pagination.from = responseData.from || 0
       pagination.to = responseData.to || 0
-
       await loadStatistics()
     }
   } catch (err) {
     console.error('Error loading overdue loans:', err)
-    error.value =
-      err.response?.data?.message ||
-      'Imeshindwa kupakia mikopo iliyopitiliza. Tafadhali jaribu tena.'
+    error.value = err.response?.data?.message || 'Imeshindwa kupakia mikopo iliyopitiliza.'
   } finally {
     loading.value = false
   }
@@ -801,35 +697,13 @@ const loadLoans = async () => {
 const loadStatistics = async () => {
   try {
     const response = await axios.get(`${API_URL}/loans/overdue/summary`)
-
     if (response.data.success) {
       const stats = response.data.data
-
       loanStatistics.value = [
-        {
-          icon: 'fas fa-clock',
-          label: 'Jumla Iliyopitiliza',
-          value: stats.total_overdue || 0,
-          color: 'linear-gradient(135deg, #e74c3c, #c0392b)',
-        },
-        {
-          icon: 'fas fa-money-bill',
-          label: 'Jumla ya Kiasi',
-          value: stats.total_amount || 0,
-          color: 'linear-gradient(135deg, #3498db, #2980b9)',
-        },
-        {
-          icon: 'fas fa-exclamation-triangle',
-          label: 'Jumla ya Adhabu',
-          value: stats.total_penalty || 0,
-          color: 'linear-gradient(135deg, #f39c12, #e67e22)',
-        },
-        {
-          icon: 'fas fa-chart-line',
-          label: 'Wastani wa Siku Zilizopitiliza',
-          value: stats.avg_days_overdue || 0,
-          color: 'linear-gradient(135deg, #9b59b6, #8e44ad)',
-        },
+        { ...loanStatistics.value[0], value: stats.total_overdue || 0 },
+        { ...loanStatistics.value[1], value: stats.total_amount || 0 },
+        { ...loanStatistics.value[2], value: stats.total_penalty || 0 },
+        { ...loanStatistics.value[3], value: stats.avg_days_overdue || 0 },
       ]
     }
   } catch (err) {
@@ -841,24 +715,15 @@ const debouncedSearch = debounce(() => {
   filters.page = 1
   loadLoans()
 }, 500)
-
-const debouncedFilter = debounce(() => {
-  filters.page = 1
-  loadLoans()
-}, 500)
-
 const clearFilter = (filter) => {
   filters[filter] = ''
   filters.page = 1
   loadLoans()
 }
-
 const clearAllFilters = () => {
   filters.search = ''
   filters.date_from = ''
   filters.date_to = ''
-  filters.min_amount = ''
-  filters.max_amount = ''
   filters.sortBy = 'due_date'
   filters.sortOrder = 'desc'
   filters.perPage = 10
@@ -874,54 +739,32 @@ const changePage = (page) => {
   }
 }
 
-// Toggle details
 const toggleDetails = (loanId) => {
-  expandedRows.value = {
-    ...expandedRows.value,
-    [loanId]: !expandedRows.value[loanId],
-  }
+  expandedRows.value = { ...expandedRows.value, [loanId]: !expandedRows.value[loanId] }
 }
 
-// Action Menu methods
 const setActionDropdownRef = (el, loanId) => {
-  if (el) {
-    actionDropdownRefs.value[loanId] = el
-  }
+  if (el) actionDropdownRefs.value[loanId] = el
 }
-
 const toggleActionMenu = (loanId) => {
-  if (activeActionMenu.value === loanId) {
-    activeActionMenu.value = null
-  } else {
-    activeActionMenu.value = loanId
-  }
+  activeActionMenu.value = activeActionMenu.value === loanId ? null : loanId
 }
-
 const closeActionMenu = () => {
   activeActionMenu.value = null
 }
 
-// Handle click outside
 const handleClickOutside = (event) => {
   let clickedOutside = true
-
   Object.values(actionDropdownRefs.value).forEach((ref) => {
-    if (ref && ref.contains(event.target)) {
-      clickedOutside = false
-    }
+    if (ref && ref.contains(event.target)) clickedOutside = false
   })
-
-  if (clickedOutside) {
-    closeActionMenu()
-  }
+  if (clickedOutside) closeActionMenu()
 }
 
-// Navigation
 const viewLoan = (loan) => {
   router.push(`/loans/${loan.id}`)
 }
 
-// Send Reminder
 const sendReminder = (loan) => {
   selectedLoan.value = loan
   reminderMessage.value = ''
@@ -937,27 +780,22 @@ const closeReminderModal = () => {
 
 const confirmSendReminder = async () => {
   if (!selectedLoan.value) return
-
   actionLoading.value = true
-
   try {
     const response = await axios.post(`${API_URL}/loans/${selectedLoan.value.id}/send-reminder`, {
       message: reminderMessage.value,
     })
-
     if (response.data.success) {
       showToastMessage('Kikumbusho kimetumwa kwa mafanikio', 'success')
       closeReminderModal()
     }
   } catch (err) {
-    console.error('Error sending reminder:', err)
     showToastMessage(err.response?.data?.message || 'Hitilafu imetokea', 'error')
   } finally {
     actionLoading.value = false
   }
 }
 
-// Waive Penalty
 const waivePenalty = (loan) => {
   selectedLoan.value = loan
   waiveReason.value = ''
@@ -973,44 +811,29 @@ const closeWaiveModal = () => {
 
 const confirmWaivePenalty = async () => {
   if (!selectedLoan.value) return
-
   actionLoading.value = true
-
   try {
     const response = await axios.post(`${API_URL}/loans/${selectedLoan.value.id}/waive-penalty`, {
       reason: waiveReason.value,
     })
-
     if (response.data.success) {
       showToastMessage('Adhabu imeondolewa kwa mafanikio', 'success')
       closeWaiveModal()
       await loadLoans()
     }
   } catch (err) {
-    console.error('Error waiving penalty:', err)
     showToastMessage(err.response?.data?.message || 'Hitilafu imetokea', 'error')
   } finally {
     actionLoading.value = false
   }
 }
 
-// Export
 const exportLoans = async () => {
   exportLoading.value = true
   showToastMessage('Mikopo inapakuliwa...', 'info')
-
   try {
-    const params = {
-      export: true,
-      status: 'overdue',
-      ...filters,
-    }
-
-    const response = await axios.get(`${API_URL}/loans/export`, {
-      params,
-      responseType: 'blob',
-    })
-
+    const params = { export: true, status: 'overdue', ...filters }
+    const response = await axios.get(`${API_URL}/loans/export`, { params, responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
@@ -1018,22 +841,18 @@ const exportLoans = async () => {
     document.body.appendChild(link)
     link.click()
     link.remove()
-
     showToastMessage('Mikopo imepakuliwa kwa mafanikio', 'success')
   } catch (err) {
-    console.error('Error exporting loans:', err)
     showToastMessage('Hitilafu wakati wa kupakua', 'error')
   } finally {
     exportLoading.value = false
   }
 }
 
-// Toast
 const showToastMessage = (message, type = 'success') => {
   toastMessage.value = message
   toastType.value = type
   showToast.value = true
-
   setTimeout(() => {
     showToast.value = false
   }, 3000)
@@ -1048,11 +867,547 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   debouncedSearch.cancel()
-  debouncedFilter.cancel()
 })
 </script>
 
 <style scoped>
+/* Same styles as before, just updated for 8 columns */
+.overdue-loans-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0rem;
+}
+.header-left h1 {
+  font-size: 1.8rem;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+.loan-count {
+  color: #7f8c8d;
+  font-size: 1rem;
+}
+.loan-count strong {
+  color: #e74c3c;
+  font-weight: 600;
+}
+.header-actions {
+  display: flex;
+  gap: 1rem;
+}
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  background-color: #ecf0f1;
+  color: #34495e;
+  border: none;
+}
+.btn-export:hover:not(:disabled) {
+  background-color: #bdc3c7;
+}
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+.summary-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.summary-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+}
+.summary-details {
+  display: flex;
+  flex-direction: column;
+}
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+.summary-label {
+  font-size: 0.9rem;
+  color: #7f8c8d;
+}
+.filters-card {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.filters-header {
+  padding: 1rem 1.5rem;
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #e9ecef;
+}
+.filters-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0;
+}
+.filter-badge {
+  background: #e74c3c;
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+}
+.filters-header i:last-child {
+  margin-left: auto;
+  transition: transform 0.3s;
+}
+.filters-header i.rotated {
+  transform: rotate(180deg);
+}
+.filters-body {
+  padding: 1.5rem;
+}
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.filter-group label {
+  font-size: 0.9rem;
+  color: #34495e;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.form-control {
+  padding: 0.6rem;
+  border: 1px solid #dce4ec;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+.form-control:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+.active-filters {
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+.filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.filter-tag {
+  background: #ecf0f1;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.remove-filter {
+  cursor: pointer;
+  color: #95a5a6;
+}
+.remove-filter:hover {
+  color: #e74c3c;
+}
+.clear-all-btn {
+  background: none;
+  border: none;
+  color: #e74c3c;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+}
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 3rem;
+  color: #7f8c8d;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.table-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+.table-responsive {
+  overflow-x: auto;
+}
+.loans-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.loans-table th {
+  background: #f8f9fa;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 2px solid #e9ecef;
+}
+.loans-table td {
+  padding: 1rem 0rem 0rem 0rem;
+  border-bottom: 1px solid #e9ecef;
+  color: #34495e;
+}
+.main-row {
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+.main-row:hover {
+  background-color: #fff5f5;
+}
+.btn-expand {
+  background: none;
+  border: none;
+  color: #e74c3c;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+.expanded-details-row td {
+  padding: 1.5rem !important;
+  background-color: #fff8f8;
+  border-top: 2px solid #e74c3c;
+}
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+.detail-label {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  font-weight: 500;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.detail-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+.penalty-amount {
+  color: #e74c3c;
+  font-weight: 600;
+}
+.penalty-date {
+  color: #7f8c8d;
+}
+.paid {
+  color: #27ae60;
+}
+.balance {
+  font-weight: 600;
+  color: #e74c3c;
+}
+.overdue-mild {
+  color: #f39c12;
+}
+.overdue-moderate {
+  color: #e67e22;
+}
+.overdue-severe {
+  color: #e74c3c;
+}
+.overdue-critical {
+  color: #c0392b;
+}
+.payment-schedule-summary {
+  width: 100%;
+}
+.schedule-stats {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+.stat {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.stat-label {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+}
+.stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.overdue-stat {
+  color: #e74c3c;
+}
+.progress-bar-container {
+  background-color: #ecf0f1;
+  border-radius: 10px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-bar {
+  background: linear-gradient(90deg, #27ae60, #2ecc71);
+  height: 100%;
+  transition: width 0.3s;
+}
+.action-dropdown {
+  position: relative;
+}
+.action-menu-btn {
+  background: none;
+  border: none;
+  color: #7f8c8d;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+.action-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 1000;
+  margin-top: 0.5rem;
+}
+.action-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: #2c3e50;
+  text-decoration: none;
+  font-size: 0.95rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+}
+.action-menu-item:hover {
+  background-color: #f8f9fa;
+}
+.action-menu-divider {
+  height: 1px;
+  background-color: #e9ecef;
+  margin: 0.25rem 0;
+}
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+}
+.pagination-btn {
+  background: white;
+  border: 1px solid #dce4ec;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pagination-btn.active {
+  background: #e74c3c;
+  color: white;
+  border-color: #e74c3c;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.modal-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-icon.info {
+  background: rgba(52, 152, 219, 0.1);
+  color: #3498db;
+}
+.modal-icon.success {
+  background: rgba(46, 204, 113, 0.1);
+  color: #27ae60;
+}
+.modal-header h3 {
+  flex: 1;
+  margin: 0;
+}
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+.modal-body {
+  padding: 1.5rem;
+}
+.loan-summary {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid #e9ecef;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+.btn-secondary {
+  background: #ecf0f1;
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+.btn-info {
+  background: #3498db;
+  color: white;
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+.btn-success {
+  background: #27ae60;
+  color: white;
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+.toast-notification {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: white;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 3000;
+}
+.toast-notification.success {
+  border-left: 4px solid #27ae60;
+}
+.toast-notification.error {
+  border-left: 4px solid #e74c3c;
+}
+.empty-state-small {
+  text-align: center;
+  padding: 3rem;
+  color: #bdc3c7;
+}
+.text-center {
+  text-align: center;
+}
+@media (max-width: 768px) {
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+  .schedule-stats {
+    flex-direction: column;
+  }
+}
+
 /* Main Container */
 .overdue-loans-container {
   max-width: 1400px;
